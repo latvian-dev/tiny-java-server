@@ -1,0 +1,73 @@
+import java.time.Instant
+
+plugins {
+	id 'java'
+	id 'maven-publish'
+}
+
+sourceCompatibility = JavaVersion.VERSION_21
+targetCompatibility = JavaVersion.VERSION_21
+
+def ENV = System.getenv()
+version = "${project_version}-${ENV.GITHUB_RUN_NUMBER ? 'build.' + ENV.GITHUB_RUN_NUMBER : 'local.' + Instant.now().epochSecond}"
+archivesBaseName = 'tiny-java-server'
+group = 'dev.latvian.apps'
+
+println("Building version: ${version}")
+
+repositories {
+	mavenCentral()
+}
+
+dependencies {
+	// implementation('com.google.code.gson:gson:2.10.1')
+
+	compileOnly('org.jetbrains:annotations:23.0.0')
+}
+
+jar {
+	manifest {
+		attributes 'Implementation-Version': archiveVersion
+	}
+}
+
+compileJava {
+	options.encoding = "UTF-8"
+	options.release.set(21)
+}
+
+java {
+	sourceCompatibility = targetCompatibility = '21'
+	withSourcesJar()
+}
+
+publishing {
+	publications {
+		mavenIchor(MavenPublication) {
+			artifactId = 'tiny-java-server'
+			from components.java
+		}
+	}
+
+	repositories {
+		if (ENV.MAVEN_TOKEN) {
+			maven {
+				url "https://maven.latvian.dev/releases"
+				credentials {
+					username = "lat"
+					password = "${ENV.MAVEN_TOKEN}"
+				}
+			}
+		}
+
+		if (ENV.SAPS_TOKEN) {
+			maven {
+				url "https://maven.saps.dev/releases"
+				credentials {
+					username = "latvian"
+					password = "${ENV.SAPS_TOKEN}"
+				}
+			}
+		}
+	}
+}
