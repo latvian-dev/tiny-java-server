@@ -15,6 +15,10 @@ public class EmptyWSHandler implements WSHandler<HTTPRequest, WSSession<HTTPRequ
 	}
 
 	@Override
+	public void broadcast(Frame frame) {
+	}
+
+	@Override
 	public void broadcastText(String payload) {
 	}
 

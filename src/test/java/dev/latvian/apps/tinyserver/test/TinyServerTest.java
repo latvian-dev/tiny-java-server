@@ -12,7 +12,7 @@ public class TinyServerTest {
 	public static HTTPServer<HTTPRequest> server;
 	public static WSHandler<HTTPRequest, WSSession<HTTPRequest>> wsHandler;
 
-	public static void main(String[] args) throws Exception {
+	public static void main(String[] args) {
 		server = new HTTPServer<>(HTTPRequest::new);
 		server.setServerName("TinyServer Test");
 		server.setAddress("127.0.0.1");
@@ -27,7 +27,7 @@ public class TinyServerTest {
 		server.get("/redirect", TinyServerTest::redirect);
 		server.post("/console", TinyServerTest::console);
 		server.get("/stop", TinyServerTest::stop);
-		wsHandler = server.ws("/console/{console-type}");
+		wsHandler = server.ws("/console/{console-type}", TestWSSession::new);
 
 		System.out.println("Started server at https://localhost:" + server.start());
 	}
@@ -41,20 +41,20 @@ public class TinyServerTest {
 	}
 
 	private static HTTPResponse variable(HTTPRequest req) {
-		return HTTPResponse.ok().text("Test: " + req.variables().get("test"));
+		return HTTPResponse.ok().text("Test: " + req.variables().get("test")).header("X-ABC", "Def");
 	}
 
 	private static HTTPResponse varpath(HTTPRequest req) {
 		return HTTPResponse.ok().text("Test: " + req.variables().get("test"));
 	}
 
-	private static HTTPResponse redirect(HTTPRequest req) {
-		return HTTPResponse.redirect("/");
-	}
-
 	private static HTTPResponse console(HTTPRequest req) throws IOException {
 		wsHandler.broadcastText(req.body());
 		return HTTPResponse.noContent();
+	}
+
+	private static HTTPResponse redirect(HTTPRequest req) {
+		return HTTPResponse.redirect("/");
 	}
 
 	private static HTTPResponse stop(HTTPRequest req) {

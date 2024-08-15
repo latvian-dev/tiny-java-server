@@ -1,6 +1,9 @@
 package dev.latvian.apps.tinyserver.http.response;
 
 import dev.latvian.apps.tinyserver.content.ResponseContent;
+import dev.latvian.apps.tinyserver.ws.WSResponse;
+import dev.latvian.apps.tinyserver.ws.WSSession;
+import org.jetbrains.annotations.Nullable;
 
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
@@ -17,6 +20,7 @@ public class HTTPResponseBuilder {
 	private HTTPStatus status = HTTPStatus.NO_CONTENT;
 	private final Map<String, String> headers = new HashMap<>();
 	private ResponseContent body = null;
+	private WSSession<?> wsSession = null;
 
 	public void setStatus(HTTPStatus status) {
 		this.status = status;
@@ -59,5 +63,18 @@ public class HTTPResponseBuilder {
 		if (body != null && writeBody) {
 			body.write(out);
 		}
+	}
+
+	public void setResponse(HTTPResponse response) throws Exception {
+		response.build(this);
+
+		if (response instanceof WSResponse res) {
+			wsSession = res.session();
+		}
+	}
+
+	@Nullable
+	public WSSession<?> wsSession() {
+		return wsSession;
 	}
 }

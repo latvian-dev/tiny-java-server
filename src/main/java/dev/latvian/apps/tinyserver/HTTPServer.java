@@ -5,19 +5,18 @@ import dev.latvian.apps.tinyserver.http.HTTPHandler;
 import dev.latvian.apps.tinyserver.http.HTTPMethod;
 import dev.latvian.apps.tinyserver.http.HTTPPathHandler;
 import dev.latvian.apps.tinyserver.http.HTTPRequest;
-import dev.latvian.apps.tinyserver.http.response.HTTPResponse;
 import dev.latvian.apps.tinyserver.http.response.HTTPResponseBuilder;
 import dev.latvian.apps.tinyserver.http.response.HTTPStatus;
+import dev.latvian.apps.tinyserver.ws.WSEndpointHandler;
 import dev.latvian.apps.tinyserver.ws.WSHandler;
 import dev.latvian.apps.tinyserver.ws.WSSession;
 import dev.latvian.apps.tinyserver.ws.WSSessionFactory;
 import org.jetbrains.annotations.Nullable;
 
+import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
-import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.InetAddress;
 import java.net.ServerSocket;
@@ -30,7 +29,7 @@ import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
-import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -44,6 +43,7 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 	private int port = 8080;
 	private int maxPortShift = 0;
 	private boolean daemon = false;
+	private int bufferSize = 8192;
 
 	public HTTPServer(Supplier<REQ> requestFactory) {
 		this.requestFactory = requestFactory;
@@ -69,6 +69,10 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 
 	public void setDaemon(boolean daemon) {
 		this.daemon = daemon;
+	}
+
+	public void setBufferSize(int bufferSize) {
+		this.bufferSize = bufferSize;
 	}
 
 	public int start() {
@@ -123,21 +127,9 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 		}
 	}
 
-	private record WSEndpointHandler<REQ extends HTTPRequest, WSS extends WSSession<REQ>>(WSSessionFactory<REQ, WSS> factory) implements WSHandler<REQ, WSS>, HTTPHandler<REQ> {
-		@Override
-		public Map<UUID, WSS> sessions() {
-			return Map.of();
-		}
-
-		@Override
-		public HTTPResponse handle(REQ req) {
-			return HTTPStatus.NOT_IMPLEMENTED;
-		}
-	}
-
 	@Override
 	public <WSS extends WSSession<REQ>> WSHandler<REQ, WSS> ws(String path, WSSessionFactory<REQ, WSS> factory) {
-		var handler = new WSEndpointHandler<>(factory);
+		var handler = new WSEndpointHandler<>(factory, new ConcurrentHashMap<>(), daemon);
 		get(path, handler);
 		return handler;
 	}
@@ -153,16 +145,33 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 		}
 	}
 
+	private String readLine(InputStream in) throws IOException {
+		var sb = new StringBuilder();
+		int b;
+
+		while ((b = in.read()) != -1) {
+			if (b == '\n') {
+				break;
+			}
+
+			if (b != '\r') {
+				sb.append((char) b);
+			}
+		}
+
+		return sb.toString();
+	}
+
 	private void handleClient(Socket socket) {
 		InputStream in = null;
 		OutputStream out = null;
+		WSSession<REQ> upgradedToWebSocket = null;
 
 		try {
-			in = socket.getInputStream();
-			var reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
-			var firstLineStr = reader.readLine();
+			in = new BufferedInputStream(socket.getInputStream(), bufferSize);
+			var firstLineStr = readLine(in);
 
-			if (firstLineStr == null || !firstLineStr.toLowerCase().endsWith(" http/1.1")) {
+			if (!firstLineStr.toLowerCase().endsWith(" http/1.1")) {
 				return;
 			}
 
@@ -212,9 +221,9 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 				var headers = new HashMap<String, String>();
 
 				while (true) {
-					var line = reader.readLine();
+					var line = readLine(in);
 
-					if (line == null || line.isBlank()) {
+					if (line.isBlank()) {
 						break;
 					}
 
@@ -262,7 +271,7 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 					var builder = createBuilder(req, null);
 					builder.setStatus(HTTPStatus.NO_CONTENT);
 					builder.setHeader("Allow", allowed.stream().map(HTTPMethod::name).collect(Collectors.joining(",")));
-					out = new BufferedOutputStream(socket.getOutputStream());
+					out = new BufferedOutputStream(socket.getOutputStream(), bufferSize);
 					builder.write(out, writeBody);
 					out.flush();
 				} else if (method == HTTPMethod.TRACE) {
@@ -276,7 +285,7 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 						var handler = rootHandlers.get(method);
 
 						if (handler != null) {
-							req.init(new String[0], CompiledPath.EMPTY, headers, query, in);
+							req.init(this, new String[0], CompiledPath.EMPTY, headers, query, in);
 							builder = createBuilder(req, handler.handler());
 						}
 					} else {
@@ -287,14 +296,14 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 							var h = hl.staticHandlers().get(path);
 
 							if (h != null) {
-								req.init(pathParts, h.path(), headers, query, in);
+								req.init(this, pathParts, h.path(), headers, query, in);
 								builder = createBuilder(req, h.handler());
 							} else {
 								for (var dynamicHandler : hl.dynamicHandlers()) {
 									var matches = dynamicHandler.path().matches(pathParts);
 
 									if (matches != null) {
-										req.init(matches, dynamicHandler.path(), headers, query, in);
+										req.init(this, matches, dynamicHandler.path(), headers, query, in);
 										builder = createBuilder(req, dynamicHandler.handler());
 										break;
 									}
@@ -308,53 +317,43 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 						builder.setStatus(HTTPStatus.NOT_FOUND);
 					}
 
-					System.out.println("Request: " + method.name() + " /" + path);
-					System.out.println("- Query:");
-
-					for (var e : query.entrySet()) {
-						System.out.println("  " + e.getKey() + ": " + e.getValue());
-					}
-
-					System.out.println("- Variables:");
-
-					for (var e : req.variables().entrySet()) {
-						System.out.println("  " + e.getKey() + ": " + e.getValue());
-					}
-
-					System.out.println("- Headers:");
-
-					for (var e : headers.entrySet()) {
-						System.out.println("  " + e.getKey() + ": " + e.getValue());
-					}
-
-					out = new BufferedOutputStream(socket.getOutputStream());
+					out = new BufferedOutputStream(socket.getOutputStream(), bufferSize);
 					builder.write(out, writeBody);
 					out.flush();
+
+					upgradedToWebSocket = (WSSession) builder.wsSession();
+
+					if (upgradedToWebSocket != null) {
+						upgradedToWebSocket.start(socket, in, out);
+						upgradedToWebSocket.onOpen(req);
+					}
 				}
 			}
 		} catch (Exception ex) {
 			ex.printStackTrace();
 		}
 
-		try {
-			if (in != null) {
-				in.close();
+		if (upgradedToWebSocket == null) {
+			try {
+				if (in != null) {
+					in.close();
+				}
+			} catch (Exception ignored) {
 			}
-		} catch (Exception ignored) {
-		}
 
-		try {
-			if (out != null) {
-				out.close();
+			try {
+				if (out != null) {
+					out.close();
+				}
+			} catch (Exception ignored) {
 			}
-		} catch (Exception ignored) {
-		}
 
-		try {
-			if (socket != null) {
-				socket.close();
+			try {
+				if (socket != null) {
+					socket.close();
+				}
+			} catch (Exception ignored) {
 			}
-		} catch (Exception ignored) {
 		}
 	}
 
@@ -369,7 +368,7 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 
 		if (handler != null) {
 			try {
-				handler.handle(req).build(builder);
+				builder.setResponse(handler.handle(req));
 			} catch (Exception ex) {
 				builder.setStatus(HTTPStatus.INTERNAL_ERROR);
 				handlePayloadError(builder, ex);

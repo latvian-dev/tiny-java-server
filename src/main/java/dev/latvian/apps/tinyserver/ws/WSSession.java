@@ -3,28 +3,45 @@ package dev.latvian.apps.tinyserver.ws;
 import dev.latvian.apps.tinyserver.StatusCode;
 import dev.latvian.apps.tinyserver.http.HTTPRequest;
 
-import java.nio.charset.StandardCharsets;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.net.Socket;
+import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.locks.LockSupport;
 
 public class WSSession<REQ extends HTTPRequest> {
-	WSHandler<REQ, ?> handler;
+	Map<UUID, WSSession<?>> sessionMap;
 	UUID id;
-	StatusCode closeReason;
+	TXThread txThread;
+	RXThread rxThread;
 
-	public UUID id() {
+	public final void start(Socket socket, InputStream in, OutputStream out) {
+		this.txThread = new TXThread(this, socket, in, out);
+		this.txThread.setDaemon(true);
+
+		this.rxThread = new RXThread(this);
+		this.rxThread.setDaemon(true);
+
+		this.txThread.start();
+		this.rxThread.start();
+	}
+
+	public final UUID id() {
 		return id;
 	}
 
-	public void send(WSPayload payload) {
-		// FIXME
+	public final void send(Frame frame) {
+		txThread.queue.add(frame);
+		LockSupport.unpark(txThread);
 	}
 
-	public void sendText(String payload) {
-		send(new WSPayload(true, payload.getBytes(StandardCharsets.UTF_8)));
+	public final void sendText(String payload) {
+		send(Frame.text(payload));
 	}
 
-	public void sendBinary(byte[] payload) {
-		send(new WSPayload(false, payload));
+	public final void sendBinary(byte[] payload) {
+		send(Frame.binary(payload));
 	}
 
 	public void onOpen(REQ req) {
@@ -34,7 +51,6 @@ public class WSSession<REQ extends HTTPRequest> {
 	}
 
 	public void onError(Throwable error) {
-		error.printStackTrace();
 	}
 
 	public void onTextMessage(String message) {
@@ -43,7 +59,9 @@ public class WSSession<REQ extends HTTPRequest> {
 	public void onBinaryMessage(byte[] message) {
 	}
 
-	public void close(String reason) {
-		closeReason = new StatusCode(1001, reason); // FIXME
+	public final void close(WSCloseStatus status, String reason) {
+		txThread.remoteClosed = false;
+		txThread.closeReason = new StatusCode(status.statusCode.code(), reason);
+		LockSupport.unpark(txThread);
 	}
 }
