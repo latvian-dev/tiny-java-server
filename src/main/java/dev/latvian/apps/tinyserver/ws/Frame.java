@@ -32,6 +32,11 @@ public record Frame(
 
 	public static Frame read(InputStream stream) throws IOException {
 		int b1 = stream.read();
+
+		if (b1 == -1) {
+			return null;
+		}
+
 		var opcode = Opcode.get(b1 & 0x0F);
 		boolean fin = (b1 & 0x80) != 0;
 		boolean rsv1 = (b1 & 0x40) != 0;

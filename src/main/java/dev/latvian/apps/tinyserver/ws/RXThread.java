@@ -19,6 +19,11 @@ class RXThread extends Thread {
 		while (session.txThread.closeReason == null) {
 			try {
 				var frame = Frame.read(session.txThread.in);
+
+				if (frame == null) {
+					break;
+				}
+
 				var payload = frame.payload();
 
 				switch (frame.opcode()) {
