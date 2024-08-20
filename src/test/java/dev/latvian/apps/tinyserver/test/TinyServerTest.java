@@ -41,11 +41,11 @@ public class TinyServerTest {
 	}
 
 	private static HTTPResponse variable(HTTPRequest req) {
-		return HTTPResponse.ok().text("Test: " + req.variables().get("test")).header("X-ABC", "Def");
+		return HTTPResponse.ok().text("Test: " + req.variable("test")).header("X-ABC", "Def");
 	}
 
 	private static HTTPResponse varpath(HTTPRequest req) {
-		return HTTPResponse.ok().text("Test: " + req.variables().get("test"));
+		return HTTPResponse.ok().text("Test: " + req.variable("test"));
 	}
 
 	private static HTTPResponse console(HTTPRequest req) throws IOException {

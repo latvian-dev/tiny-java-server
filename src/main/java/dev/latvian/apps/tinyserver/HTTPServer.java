@@ -1,6 +1,7 @@
 package dev.latvian.apps.tinyserver;
 
 import dev.latvian.apps.tinyserver.error.BindFailedException;
+import dev.latvian.apps.tinyserver.error.InvalidPathException;
 import dev.latvian.apps.tinyserver.http.HTTPHandler;
 import dev.latvian.apps.tinyserver.http.HTTPMethod;
 import dev.latvian.apps.tinyserver.http.HTTPPathHandler;
@@ -251,6 +252,16 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 					} else {
 						var pathParts = path.split("/");
 
+						for (int i = 0; i < pathParts.length; i++) {
+							try {
+								if (pathParts[i].indexOf('%') != -1) {
+									pathParts[i] = URLDecoder.decode(pathParts[i], StandardCharsets.UTF_8);
+								}
+							} catch (Exception ex) {
+								throw new InvalidPathException(ex.getMessage());
+							}
+						}
+
 						for (var handler : handlers.entrySet()) {
 							if (handler.getValue().staticHandlers().containsKey(path)) {
 								allowed.add(handler.getKey());
@@ -293,6 +304,17 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 
 						if (hl != null) {
 							var pathParts = path.split("/");
+
+							for (int i = 0; i < pathParts.length; i++) {
+								try {
+									if (pathParts[i].indexOf('%') != -1) {
+										pathParts[i] = URLDecoder.decode(pathParts[i], StandardCharsets.UTF_8);
+									}
+								} catch (Exception ex) {
+									throw new InvalidPathException(ex.getMessage());
+								}
+							}
+
 							var h = hl.staticHandlers().get(path);
 
 							if (h != null) {

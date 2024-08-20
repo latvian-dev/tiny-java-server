@@ -2,6 +2,7 @@ package dev.latvian.apps.tinyserver.http;
 
 import dev.latvian.apps.tinyserver.CompiledPath;
 import dev.latvian.apps.tinyserver.HTTPServer;
+import dev.latvian.apps.tinyserver.error.InvalidPathException;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -45,6 +46,16 @@ public class HTTPRequest {
 
 	public Map<String, String> variables() {
 		return variables;
+	}
+
+	public String variable(String name) {
+		var s = variables.get(name);
+
+		if (s == null || s.isEmpty()) {
+			throw new InvalidPathException("Variable " + name + " not found");
+		}
+
+		return s;
 	}
 
 	public Map<String, String> query() {
