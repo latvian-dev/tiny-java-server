@@ -9,6 +9,7 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 public class HTTPRequest {
@@ -16,10 +17,10 @@ public class HTTPRequest {
 	private String[] path = new String[0];
 	private Map<String, String> variables = Map.of();
 	private Map<String, String> query = Map.of();
-	private Map<String, String> headers = Map.of();
+	private List<Header> headers = List.of();
 	private InputStream bodyStream = null;
 
-	public void init(HTTPServer<?> server, String[] path, CompiledPath compiledPath, Map<String, String> headers, Map<String, String> query, InputStream bodyStream) {
+	public void init(HTTPServer<?> server, String[] path, CompiledPath compiledPath, List<Header> headers, Map<String, String> query, InputStream bodyStream) {
 		this.server = server;
 		this.path = path;
 
@@ -62,12 +63,18 @@ public class HTTPRequest {
 		return query;
 	}
 
-	public Map<String, String> headers() {
-		return Collections.unmodifiableMap(headers);
+	public List<Header> headers() {
+		return Collections.unmodifiableList(headers);
 	}
 
 	public String header(String name) {
-		return headers.getOrDefault(name.toLowerCase(), "");
+		for (var header : headers) {
+			if (header.key().equalsIgnoreCase(name)) {
+				return header.value();
+			}
+		}
+
+		return "";
 	}
 
 	public String[] path() {

@@ -6,6 +6,7 @@ import dev.latvian.apps.tinyserver.http.HTTPHandler;
 import dev.latvian.apps.tinyserver.http.HTTPMethod;
 import dev.latvian.apps.tinyserver.http.HTTPPathHandler;
 import dev.latvian.apps.tinyserver.http.HTTPRequest;
+import dev.latvian.apps.tinyserver.http.Header;
 import dev.latvian.apps.tinyserver.http.response.HTTPResponseBuilder;
 import dev.latvian.apps.tinyserver.http.response.HTTPStatus;
 import dev.latvian.apps.tinyserver.ws.WSEndpointHandler;
@@ -25,6 +26,7 @@ import java.net.Socket;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.EnumMap;
 import java.util.HashMap;
@@ -219,7 +221,7 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 					}
 				}
 
-				var headers = new HashMap<String, String>();
+				var headers = new ArrayList<Header>();
 
 				while (true) {
 					var line = readLine(in);
@@ -231,7 +233,7 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 					var parts = line.split(":", 2);
 
 					if (parts.length == 2) {
-						headers.put(parts[0].trim().toLowerCase(), parts[1].trim());
+						headers.add(new Header(parts[0].trim(), parts[1].trim()));
 					}
 				}
 

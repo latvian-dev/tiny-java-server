@@ -1,6 +1,7 @@
 package dev.latvian.apps.tinyserver.http.response;
 
 import dev.latvian.apps.tinyserver.content.ResponseContent;
+import dev.latvian.apps.tinyserver.http.Header;
 import dev.latvian.apps.tinyserver.ws.WSResponse;
 import dev.latvian.apps.tinyserver.ws.WSSession;
 import org.jetbrains.annotations.Nullable;
@@ -9,16 +10,16 @@ import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
-import java.util.HashMap;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 
 public class HTTPResponseBuilder {
 	public static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("EEE, dd MMM yyyy HH:mm:ss z", Locale.ENGLISH).withZone(ZoneId.of("GMT"));
 	private static final byte[] CRLF = "\r\n".getBytes(StandardCharsets.UTF_8);
 
 	private HTTPStatus status = HTTPStatus.NO_CONTENT;
-	private final Map<String, String> headers = new HashMap<>();
+	private final List<Header> headers = new ArrayList<>();
 	private ResponseContent body = null;
 	private WSSession<?> wsSession = null;
 
@@ -27,7 +28,7 @@ public class HTTPResponseBuilder {
 	}
 
 	public void setHeader(String header, Object value) {
-		this.headers.put(header, String.valueOf(value));
+		this.headers.add(new Header(header, String.valueOf(value)));
 	}
 
 	public void setBody(ResponseContent body) {
@@ -38,8 +39,8 @@ public class HTTPResponseBuilder {
 		out.write(status.responseBytes);
 		out.write(CRLF);
 
-		for (var entry : headers.entrySet()) {
-			out.write((entry.getKey() + ": " + entry.getValue()).getBytes());
+		for (var header : headers) {
+			out.write((header.key() + ": " + header.value()).getBytes());
 			out.write(CRLF);
 		}
 

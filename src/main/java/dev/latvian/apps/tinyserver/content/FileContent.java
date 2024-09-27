@@ -2,6 +2,7 @@ package dev.latvian.apps.tinyserver.content;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.net.http.HttpRequest;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
@@ -31,5 +32,10 @@ public record FileContent(Path file, String overrideType) implements ResponseCon
 	@Override
 	public void write(OutputStream out) throws Exception {
 		Files.copy(file, out);
+	}
+
+	@Override
+	public HttpRequest.BodyPublisher bodyPublisher() throws IOException {
+		return HttpRequest.BodyPublishers.ofByteArray(Files.readAllBytes(file));
 	}
 }

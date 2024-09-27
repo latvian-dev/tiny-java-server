@@ -2,10 +2,12 @@ package dev.latvian.apps.tinyserver.http.response;
 
 import dev.latvian.apps.tinyserver.content.ByteContent;
 import dev.latvian.apps.tinyserver.content.FileContent;
+import dev.latvian.apps.tinyserver.content.MimeType;
 import dev.latvian.apps.tinyserver.content.ResponseContent;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.util.function.Consumer;
 
 public interface HTTPResponse {
 	static HTTPResponse ok() {
@@ -42,8 +44,22 @@ public interface HTTPResponse {
 
 	void build(HTTPResponseBuilder payload) throws Exception;
 
-	default HTTPResponse header(String header, String value) {
-		return new HTTPResponseWithHeader(this, header, value);
+	default HTTPResponse header(String header, Object value) {
+		return new HTTPResponseWithHeader(this, header, String.valueOf(value));
+	}
+
+	default HTTPResponse cookie(String key, String value) {
+		return new HTTPResponseWithCookie(this, key, value);
+	}
+
+	default HTTPResponse cookie(String key, String value, int maxAge) {
+		return new HTTPResponseWithCookie(this, key, value, new HTTPResponseWithCookie.Builder().maxAge(maxAge));
+	}
+
+	default HTTPResponse cookie(String key, String value, Consumer<HTTPResponseWithCookie.Builder> properties) {
+		var builder = new HTTPResponseWithCookie.Builder();
+		properties.accept(builder);
+		return new HTTPResponseWithCookie(this, key, value, builder);
 	}
 
 	default HTTPResponse noCache() {
@@ -75,7 +91,7 @@ public interface HTTPResponse {
 	}
 
 	default HTTPResponse text(String text) {
-		return content(text.getBytes(StandardCharsets.UTF_8), "text/plain; charset=utf-8");
+		return content(text.getBytes(StandardCharsets.UTF_8), MimeType.TEXT);
 	}
 
 	default HTTPResponse text(Iterable<String> text) {
@@ -83,8 +99,6 @@ public interface HTTPResponse {
 	}
 
 	default HTTPResponse json(String json) {
-		return content(json.getBytes(StandardCharsets.UTF_8), "application/json; charset=utf-8");
+		return content(json.getBytes(StandardCharsets.UTF_8), MimeType.JSON);
 	}
-
-
 }
