@@ -124,6 +124,8 @@ public class HTTPPayload {
 
 		if (response instanceof WSResponse res) {
 			wsSession = res.session();
+		} else {
+			wsSession = null;
 		}
 	}
 

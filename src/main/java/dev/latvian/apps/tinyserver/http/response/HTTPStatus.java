@@ -88,8 +88,12 @@ public enum HTTPStatus implements HTTPResponse {
 	}
 
 	@Override
+	public HTTPStatus status() {
+		return this;
+	}
+
+	@Override
 	public void build(HTTPPayload payload) {
-		payload.setStatus(this);
 	}
 
 	public boolean informational() {

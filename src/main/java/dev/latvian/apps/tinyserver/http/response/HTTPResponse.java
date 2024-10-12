@@ -31,20 +31,22 @@ public interface HTTPResponse {
 	}
 
 	static HTTPResponse redirect(String location) {
-		return new RedirectResponse(EmptyResponse.INSTANCE, HTTPStatus.FOUND, location);
+		return new RedirectResponse(HTTPStatus.FOUND, location);
 	}
 
 	static HTTPResponse movedPermanently(String location) {
-		return new RedirectResponse(EmptyResponse.INSTANCE, HTTPStatus.MOVED_PERMANENTLY, location);
+		return new RedirectResponse(HTTPStatus.MOVED_PERMANENTLY, location);
 	}
 
 	static HTTPResponse redirectTemporary(String location) {
-		return new RedirectResponse(EmptyResponse.INSTANCE, HTTPStatus.TEMPORARY_REDIRECT, location);
+		return new RedirectResponse(HTTPStatus.TEMPORARY_REDIRECT, location);
 	}
 
 	static HTTPResponse redirectPermanently(String location) {
-		return new RedirectResponse(EmptyResponse.INSTANCE, HTTPStatus.PERMANENT_REDIRECT, location);
+		return new RedirectResponse(HTTPStatus.PERMANENT_REDIRECT, location);
 	}
+
+	HTTPStatus status();
 
 	void build(HTTPPayload payload);
 

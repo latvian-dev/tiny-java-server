@@ -44,7 +44,7 @@ public class TinyServerTest {
 	}
 
 	private static HTTPResponse homepage(TestRequest req) {
-		return HTTPResponse.ok().text("Homepage");
+		return HTTPResponse.ok().text("Homepage " + req.startTime());
 	}
 
 	private static HTTPResponse test(TestRequest req) {

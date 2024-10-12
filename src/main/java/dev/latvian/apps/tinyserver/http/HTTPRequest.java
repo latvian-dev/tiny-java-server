@@ -213,11 +213,9 @@ public class HTTPRequest {
 
 			for (var header : headers) {
 				if (header.is("Accept-Encoding")) {
-					Arrays.stream(header.value().split(",")).map(s -> s.trim().split(";")).forEach(s -> acceptedEncodings.add(s[0]));
+					Arrays.stream(header.value().split(",")).map(s -> s.trim().split(";")).forEach(s -> acceptedEncodings.add(s[0].trim()));
 				}
 			}
-
-			acceptedEncodings = Set.of(header("Accept-Encoding").split(","));
 		}
 
 		return acceptedEncodings;

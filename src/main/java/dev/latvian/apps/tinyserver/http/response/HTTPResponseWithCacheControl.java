@@ -8,6 +8,11 @@ public record HTTPResponseWithCacheControl(HTTPResponse original, String value) 
 	}
 
 	@Override
+	public HTTPStatus status() {
+		return original.status();
+	}
+
+	@Override
 	public void build(HTTPPayload payload) {
 		payload.setCacheControl(value);
 		original.build(payload);

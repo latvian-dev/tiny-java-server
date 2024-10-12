@@ -71,6 +71,11 @@ public record HTTPResponseWithCookie(HTTPResponse original, String key, String v
 	}
 
 	@Override
+	public HTTPStatus status() {
+		return original.status();
+	}
+
+	@Override
 	public void build(HTTPPayload payload) {
 		var sb = new StringBuilder();
 		sb.append(value);

@@ -16,7 +16,6 @@ import dev.latvian.apps.tinyserver.ws.WSSession;
 import dev.latvian.apps.tinyserver.ws.WSSessionFactory;
 import org.jetbrains.annotations.Nullable;
 
-import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -24,6 +23,7 @@ import java.io.OutputStream;
 import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.net.SocketTimeoutException;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
@@ -97,6 +97,12 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 			throw new BindFailedException(port, port + maxPortShift);
 		}
 
+		try {
+			serverSocket.setReceiveBufferSize(bufferSize);
+		} catch (Exception ex) {
+			ex.printStackTrace();
+		}
+
 		var thread = new Thread(this);
 		thread.setDaemon(daemon);
 		thread.start();
@@ -144,38 +150,62 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 		try (var s = serverSocket) {
 			while (serverSocket != null) {
 				var socket = s.accept();
-				Thread.startVirtualThread(() -> handleClient(socket));
+				long startTime = System.nanoTime();
+				socket.setSoTimeout(5000);
+				Thread.startVirtualThread(new ClientHandler(this, socket, startTime));
+				//new ClientHandler(this, socket, startTime).run();
 			}
 		} catch (Exception ignore) {
 		}
 	}
 
-	private String readLine(InputStream in) throws IOException {
+	private String readLine(InputStream in, Socket socket, long startTime) throws IOException {
 		var sb = new StringBuilder();
 		int b;
 
-		while ((b = in.read()) != -1) {
-			if (b == '\n') {
-				break;
-			}
+		try {
+			while ((b = in.read()) != -1) {
+				if (b == '\n') {
+					break;
+				}
 
-			if (b != '\r') {
-				sb.append((char) b);
+				if (b != '\r') {
+					sb.append((char) b);
+				}
 			}
+		} catch (Throwable ex) {
+			socketError(socket, startTime, ex);
 		}
 
 		return sb.toString();
 	}
 
-	private void handleClient(Socket socket) {
+	private record ClientHandler(HTTPServer<?> server, Socket socket, long startTime) implements Runnable {
+		@Override
+		public void run() {
+			server.handleNewClient(socket, startTime);
+		}
+	}
+
+	protected void handleNewClient(Socket socket, long startTime) {
+		try {
+			handleClient(socket, startTime);
+		} catch (Throwable ex) {
+			ex.printStackTrace();
+		}
+	}
+
+	protected void handleClient(Socket socket, long startTime) {
+		socketOpened(socket, startTime);
+
 		InputStream in = null;
 		OutputStream out = null;
 		WSSession<REQ> upgradedToWebSocket = null;
-		long startTime = System.currentTimeMillis();
 
 		try {
-			in = new BufferedInputStream(socket.getInputStream(), bufferSize);
-			var firstLineStr = readLine(in);
+			in = socket.getInputStream();
+
+			var firstLineStr = readLine(in, socket, startTime);
 
 			if (!firstLineStr.toLowerCase().endsWith(" http/1.1")) {
 				return;
@@ -228,7 +258,7 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 				var headers = new ArrayList<Header>();
 
 				while (true) {
-					var line = readLine(in);
+					var line = readLine(in, socket, startTime);
 
 					if (line.isBlank()) {
 						break;
@@ -357,8 +387,8 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 					}
 				}
 			}
-		} catch (Exception ex) {
-			ex.printStackTrace();
+		} catch (Throwable ex) {
+			socketError(socket, startTime, ex);
 		}
 
 		if (upgradedToWebSocket == null) {
@@ -382,6 +412,8 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 				}
 			} catch (Exception ignored) {
 			}
+
+			socketClosed(socket, startTime);
 		}
 	}
 
@@ -400,9 +432,26 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 				error = error1;
 			}
 
+			payload.setStatus(response.status());
 			payload.setResponse(req.handleResponse(payload, response, error));
 		}
 
 		return payload;
+	}
+
+	protected void socketOpened(Socket socket, long startTime) {
+		System.out.println("\u001B[32mAccepted connection from " + socket.getPort() + " @ " + startTime + "\u001B[0m");
+	}
+
+	protected void socketClosed(Socket socket, long startTime) {
+		System.out.println("\u001B[34mClosed connection from " + socket.getPort() + " @ " + startTime + "\u001B[0m");
+	}
+
+	protected void socketError(Socket socket, long startTime, Throwable error) {
+		if (error instanceof SocketTimeoutException) {
+			System.out.println("\u001B[31mConnection " + socket.getPort() + " @ " + startTime + " timed out\u001B[0m");
+		} else {
+			error.printStackTrace();
+		}
 	}
 }
