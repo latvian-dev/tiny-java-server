@@ -63,28 +63,20 @@ public interface HTTPResponse {
 		return new HTTPResponseWithCookie(this, key, value, builder);
 	}
 
-	default HTTPResponse cache(boolean isPublic, int seconds) {
-		return new HTTPResponseWithCacheControl(this, isPublic, seconds);
+	default HTTPResponse cache(boolean isPublic, Duration duration) {
+		return new HTTPResponseWithCacheControl(this, isPublic, duration);
 	}
 
 	default HTTPResponse noCache() {
-		return cache(true, 0);
-	}
-
-	default HTTPResponse publicCache(int seconds) {
-		return cache(true, seconds);
+		return cache(true, Duration.ZERO);
 	}
 
 	default HTTPResponse publicCache(Duration duration) {
-		return publicCache((int) duration.toSeconds());
-	}
-
-	default HTTPResponse privateCache(int seconds) {
-		return cache(false, seconds);
+		return cache(true, duration);
 	}
 
 	default HTTPResponse privateCache(Duration duration) {
-		return privateCache((int) duration.toSeconds());
+		return cache(false, duration);
 	}
 
 	default HTTPResponse content(ResponseContent content) {

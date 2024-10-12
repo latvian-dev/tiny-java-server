@@ -10,8 +10,8 @@ public record WSResponse(WSSession<?> session, byte[] accept) implements HTTPRes
 	@Override
 	public void build(HTTPPayload payload) {
 		payload.setStatus(HTTPStatus.SWITCHING_PROTOCOLS);
-		payload.setHeader("Upgrade", "websocket");
-		payload.setHeader("Connection", "Upgrade");
-		payload.setHeader("Sec-WebSocket-Accept", Base64.getEncoder().encodeToString(accept));
+		payload.addHeader("Upgrade", "websocket");
+		payload.addHeader("Connection", "Upgrade");
+		payload.addHeader("Sec-WebSocket-Accept", Base64.getEncoder().encodeToString(accept));
 	}
 }

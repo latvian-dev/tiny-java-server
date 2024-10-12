@@ -18,6 +18,7 @@ import java.util.Map;
 
 public class HTTPRequest {
 	private HTTPServer<?> server;
+	private HTTPMethod method;
 	private long startTime = 0L;
 	private String path = "";
 	private String[] pathParts = new String[0];
@@ -30,8 +31,9 @@ public class HTTPRequest {
 	private Map<String, String> formData = null;
 
 	@ApiStatus.Internal
-	public void init(HTTPServer<?> server, long startTime, String path, String[] pathParts, CompiledPath compiledPath, List<Header> headers, String queryString, Map<String, String> query, InputStream bodyStream) {
+	public void init(HTTPServer<?> server, HTTPMethod method, long startTime, String path, String[] pathParts, CompiledPath compiledPath, List<Header> headers, String queryString, Map<String, String> query, InputStream bodyStream) {
 		this.server = server;
+		this.method = method;
 		this.startTime = startTime;
 		this.path = path;
 		this.pathParts = pathParts;
@@ -60,6 +62,10 @@ public class HTTPRequest {
 
 	public HTTPServer<?> server() {
 		return server;
+	}
+
+	public HTTPMethod method() {
+		return method;
 	}
 
 	public long startTime() {

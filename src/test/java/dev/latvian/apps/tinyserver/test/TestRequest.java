@@ -4,6 +4,8 @@ import dev.latvian.apps.tinyserver.http.HTTPRequest;
 import dev.latvian.apps.tinyserver.http.response.HTTPPayload;
 import dev.latvian.apps.tinyserver.http.response.HTTPResponse;
 
+import java.nio.file.Path;
+
 public class TestRequest extends HTTPRequest {
 	@Override
 	public void beforeResponse(HTTPPayload payload, HTTPResponse response) {
@@ -12,10 +14,15 @@ public class TestRequest extends HTTPRequest {
 
 	@Override
 	public void afterResponse(HTTPPayload payload, HTTPResponse response) {
-		System.out.println("/" + fullPath() + " " + payload.getStatus() + ", " + (System.currentTimeMillis() - startTime()) + " ms");
+		System.out.println(method() + " /" + fullPath() + " " + payload.getStatus() + ", " + (System.currentTimeMillis() - startTime()) + " ms");
 		System.out.println("- Cookies: " + cookies());
 		System.out.println("- Headers: " + headers());
 		System.out.println("- Query: " + query());
-		System.out.println("- Form: " + form());
+
+		if (!header("Content-Length").isEmpty()) {
+			System.out.println("- Form: " + formData());
+		}
+
+		System.out.println(Path.of("src/test/resources").toAbsolutePath());
 	}
 }

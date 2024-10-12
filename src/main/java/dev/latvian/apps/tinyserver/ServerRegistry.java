@@ -3,11 +3,15 @@ package dev.latvian.apps.tinyserver;
 import dev.latvian.apps.tinyserver.http.HTTPHandler;
 import dev.latvian.apps.tinyserver.http.HTTPMethod;
 import dev.latvian.apps.tinyserver.http.HTTPRequest;
+import dev.latvian.apps.tinyserver.http.PathFileHandler;
+import dev.latvian.apps.tinyserver.http.RootPathFileHandler;
 import dev.latvian.apps.tinyserver.http.response.HTTPResponse;
 import dev.latvian.apps.tinyserver.ws.WSHandler;
 import dev.latvian.apps.tinyserver.ws.WSSession;
 import dev.latvian.apps.tinyserver.ws.WSSessionFactory;
 
+import java.nio.file.Path;
+import java.time.Duration;
 import java.util.function.Consumer;
 
 public interface ServerRegistry<REQ extends HTTPRequest> {
@@ -50,6 +54,14 @@ public interface ServerRegistry<REQ extends HTTPRequest> {
 	default void redirect(String path, String redirect) {
 		var res = HTTPResponse.redirect(redirect);
 		get(path, req -> res);
+	}
+
+	default void files(String path, Path directory, Duration cacheDuration, boolean autoInedx) {
+		if (autoInedx) {
+			get(path, new RootPathFileHandler<>(path, directory));
+		}
+
+		get(path + "/<path>", new PathFileHandler<>(path, directory, cacheDuration, autoInedx));
 	}
 
 	<WSS extends WSSession<REQ>> WSHandler<REQ, WSS> ws(String path, WSSessionFactory<REQ, WSS> factory);

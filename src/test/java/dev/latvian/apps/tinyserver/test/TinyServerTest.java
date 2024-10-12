@@ -5,6 +5,8 @@ import dev.latvian.apps.tinyserver.http.response.HTTPResponse;
 import dev.latvian.apps.tinyserver.ws.WSHandler;
 
 import java.io.IOException;
+import java.nio.file.Path;
+import java.time.Duration;
 
 public class TinyServerTest {
 	public static HTTPServer<TestRequest> server;
@@ -25,6 +27,9 @@ public class TinyServerTest {
 		server.get("/redirect", TinyServerTest::redirect);
 		server.post("/console", TinyServerTest::console);
 		server.get("/stop", TinyServerTest::stop);
+		server.files("/files", Path.of("src/test/resources"), Duration.ofMinutes(1L), true);
+		server.files("/files-no-index", Path.of("src/test/resources"), Duration.ofMinutes(1L), false);
+
 		wsHandler = server.ws("/console/{console-type}", TestWSSession::new);
 
 		System.out.println("Started server at https://localhost:" + server.start());

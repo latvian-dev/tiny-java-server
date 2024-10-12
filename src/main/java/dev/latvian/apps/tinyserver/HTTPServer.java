@@ -185,6 +185,7 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 
 			var method = firstLine.length == 2 ? HTTPMethod.fromString(firstLine[0]) : null;
 			boolean writeBody = method != null && method.body();
+			var originalMethod = method;
 
 			if (method == HTTPMethod.HEAD) {
 				method = HTTPMethod.GET;
@@ -285,7 +286,7 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 
 					var builder = createBuilder(req, null);
 					builder.setStatus(HTTPStatus.NO_CONTENT);
-					builder.setHeader("Allow", allowed.stream().map(HTTPMethod::name).collect(Collectors.joining(",")));
+					builder.addHeader("Allow", allowed.stream().map(HTTPMethod::name).collect(Collectors.joining(",")));
 					out = new BufferedOutputStream(socket.getOutputStream(), bufferSize);
 					builder.write(out, writeBody);
 					out.flush();
@@ -300,7 +301,7 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 						var handler = rootHandlers.get(method);
 
 						if (handler != null) {
-							req.init(this, startTime, "", new String[0], CompiledPath.EMPTY, headers, queryString, query, in);
+							req.init(this, originalMethod, startTime, "", new String[0], CompiledPath.EMPTY, headers, queryString, query, in);
 							builder = createBuilder(req, handler.handler());
 						}
 					} else {
@@ -322,14 +323,14 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 							var h = hl.staticHandlers().get(path);
 
 							if (h != null) {
-								req.init(this, startTime, path, pathParts, h.path(), headers, queryString, query, in);
+								req.init(this, originalMethod, startTime, path, pathParts, h.path(), headers, queryString, query, in);
 								builder = createBuilder(req, h.handler());
 							} else {
 								for (var dynamicHandler : hl.dynamicHandlers()) {
 									var matches = dynamicHandler.path().matches(pathParts);
 
 									if (matches != null) {
-										req.init(this, startTime, path, matches, dynamicHandler.path(), headers, queryString, query, in);
+										req.init(this, originalMethod, startTime, path, matches, dynamicHandler.path(), headers, queryString, query, in);
 										builder = createBuilder(req, dynamicHandler.handler());
 										break;
 									}
@@ -384,26 +385,26 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 	}
 
 	public HTTPPayload createBuilder(REQ req, @Nullable HTTPHandler<REQ> handler) {
-		var builder = new HTTPPayload();
+		var payload = new HTTPPayload();
 
 		if (serverName != null && !serverName.isEmpty()) {
-			builder.setHeader("Server", serverName);
+			payload.addHeader("Server", serverName);
 		}
 
-		builder.setHeader("Date", HTTPPayload.DATE_TIME_FORMATTER.format(Instant.now()));
+		payload.addHeader("Date", HTTPPayload.DATE_TIME_FORMATTER.format(Instant.now()));
 
 		if (handler != null) {
 			try {
 				var response = handler.handle(req);
-				req.beforeResponse(builder, response);
-				builder.setResponse(response);
-				req.afterResponse(builder, response);
+				req.beforeResponse(payload, response);
+				payload.setResponse(response);
+				req.afterResponse(payload, response);
 			} catch (Exception ex) {
-				builder.setStatus(HTTPStatus.INTERNAL_ERROR);
-				req.handlePayloadError(builder, ex);
+				payload.setStatus(HTTPStatus.INTERNAL_ERROR);
+				req.handlePayloadError(payload, ex);
 			}
 		}
 
-		return builder;
+		return payload;
 	}
 }
