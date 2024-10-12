@@ -288,7 +288,7 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 					builder.setStatus(HTTPStatus.NO_CONTENT);
 					builder.addHeader("Allow", allowed.stream().map(HTTPMethod::name).collect(Collectors.joining(",")));
 					out = new BufferedOutputStream(socket.getOutputStream(), bufferSize);
-					builder.write(out, writeBody);
+					builder.write(req, out, writeBody);
 					out.flush();
 				} else if (method == HTTPMethod.TRACE) {
 					// no-op
@@ -345,7 +345,7 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 					}
 
 					out = new BufferedOutputStream(socket.getOutputStream(), bufferSize);
-					builder.write(out, writeBody);
+					builder.write(req, out, writeBody);
 					out.flush();
 
 					upgradedToWebSocket = (WSSession) builder.getWSSession();

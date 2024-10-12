@@ -5,12 +5,13 @@ public record HTTPResponseWithCookie(HTTPResponse original, String key, String v
 		private static final Builder DEFAULT = new Builder();
 
 		private String domain = null;
-		private int maxAge = 0;
+		private int maxAge = -2;
 		private boolean httpOnly = false;
 		private boolean partitioned = false;
 		private String path = null;
 		private String sameSite = null;
 		private boolean secure = false;
+		private String comment = null;
 
 		public Builder domain(String domain) {
 			this.domain = domain;
@@ -20,6 +21,10 @@ public record HTTPResponseWithCookie(HTTPResponse original, String key, String v
 		public Builder maxAge(int maxAge) {
 			this.maxAge = maxAge;
 			return this;
+		}
+
+		public Builder maxAgeYear() {
+			return maxAge(31536000);
 		}
 
 		public Builder httpOnly() {
@@ -46,6 +51,19 @@ public record HTTPResponseWithCookie(HTTPResponse original, String key, String v
 			this.secure = true;
 			return this;
 		}
+
+		public Builder comment(String comment) {
+			this.comment = comment;
+			return this;
+		}
+
+		public Builder remove() {
+			return maxAge(0);
+		}
+
+		public Builder session() {
+			return maxAge(-1);
+		}
 	}
 
 	public HTTPResponseWithCookie(HTTPResponse original, String key, String value) {
@@ -61,7 +79,7 @@ public record HTTPResponseWithCookie(HTTPResponse original, String key, String v
 			sb.append("; Domain=").append(builder.domain);
 		}
 
-		if (builder.maxAge >= 0) {
+		if (builder.maxAge >= -1) {
 			sb.append("; Max-Age=").append(builder.maxAge);
 		}
 
@@ -83,6 +101,10 @@ public record HTTPResponseWithCookie(HTTPResponse original, String key, String v
 
 		if (builder.secure) {
 			sb.append("; Secure");
+		}
+
+		if (builder.comment != null) {
+			sb.append("; Comment=").append(builder.comment);
 		}
 
 		payload.setCookie(key, sb.toString());

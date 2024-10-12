@@ -30,8 +30,13 @@ public record FileContent(Path file, String overrideType) implements ResponseCon
 	}
 
 	@Override
-	public void write(OutputStream out) throws Exception {
+	public void write(OutputStream out) throws IOException {
 		Files.copy(file, out);
+	}
+
+	@Override
+	public byte[] toBytes() throws IOException {
+		return Files.readAllBytes(file);
 	}
 
 	@Override

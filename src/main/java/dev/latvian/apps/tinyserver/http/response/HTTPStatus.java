@@ -1,6 +1,7 @@
 package dev.latvian.apps.tinyserver.http.response;
 
 import dev.latvian.apps.tinyserver.StatusCode;
+import org.jetbrains.annotations.Nullable;
 
 import java.nio.charset.StandardCharsets;
 
@@ -61,6 +62,23 @@ public enum HTTPStatus implements HTTPResponse {
 
 	;
 
+	private static final HTTPStatus[] VALUES = values();
+
+	@Nullable
+	public static HTTPStatus fromCode(int code) {
+		if (code < 100 || code > 599) {
+			return null;
+		}
+
+		for (var status : VALUES) {
+			if (status.statusCode.code() == code) {
+				return status;
+			}
+		}
+
+		return null;
+	}
+
 	public final StatusCode statusCode;
 	public final byte[] responseBytes;
 
@@ -72,5 +90,29 @@ public enum HTTPStatus implements HTTPResponse {
 	@Override
 	public void build(HTTPPayload payload) {
 		payload.setStatus(this);
+	}
+
+	public boolean informational() {
+		return statusCode.code() >= 100 && statusCode.code() < 200;
+	}
+
+	public boolean success() {
+		return statusCode.code() >= 200 && statusCode.code() < 300;
+	}
+
+	public boolean redirect() {
+		return statusCode.code() >= 300 && statusCode.code() < 400;
+	}
+
+	public boolean clientError() {
+		return statusCode.code() >= 400 && statusCode.code() < 500;
+	}
+
+	public boolean serverError() {
+		return statusCode.code() >= 500 && statusCode.code() < 600;
+	}
+
+	public boolean error() {
+		return statusCode.code() >= 400;
 	}
 }

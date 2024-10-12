@@ -1,7 +1,9 @@
 package dev.latvian.apps.tinyserver.http.response;
 
 import dev.latvian.apps.tinyserver.content.ResponseContent;
+import dev.latvian.apps.tinyserver.http.HTTPRequest;
 import dev.latvian.apps.tinyserver.http.Header;
+import dev.latvian.apps.tinyserver.http.response.encoding.ResponseContentEncoding;
 import dev.latvian.apps.tinyserver.ws.WSResponse;
 import dev.latvian.apps.tinyserver.ws.WSSession;
 import org.jetbrains.annotations.Nullable;
@@ -20,15 +22,26 @@ public class HTTPPayload {
 	public static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("EEE, dd MMM yyyy HH:mm:ss z", Locale.ENGLISH).withZone(ZoneId.of("GMT"));
 	private static final byte[] CRLF = "\r\n".getBytes(StandardCharsets.UTF_8);
 
-	private String cacheControl = "";
-	private Map<String, String> cookies;
 	private HTTPStatus status = HTTPStatus.NO_CONTENT;
 	private final List<Header> headers = new ArrayList<>();
+	private String cacheControl = "";
+	private Map<String, String> cookies;
 	private ResponseContent body = null;
 	private WSSession<?> wsSession = null;
+	private List<ResponseContentEncoding> encodings;
 
 	public void setStatus(HTTPStatus status) {
 		this.status = status;
+	}
+
+	public void clear() {
+		status = HTTPStatus.NO_CONTENT;
+		headers.clear();
+		cacheControl = "";
+		cookies = null;
+		body = null;
+		wsSession = null;
+		encodings = null;
 	}
 
 	public HTTPStatus getStatus() {
@@ -40,14 +53,14 @@ public class HTTPPayload {
 	}
 
 	public void setHeader(String header, Object value) {
-		this.headers.removeIf(h -> h.key().equalsIgnoreCase(header));
+		this.headers.removeIf(h -> h.is(header));
 		addHeader(header, value);
 	}
 
 	@Nullable
 	public String getHeader(String header) {
 		for (var h : headers) {
-			if (h.key().equalsIgnoreCase(header)) {
+			if (h.is(header)) {
 				return h.value();
 			}
 		}
@@ -90,6 +103,14 @@ public class HTTPPayload {
 		return wsSession;
 	}
 
+	public void addEncoding(ResponseContentEncoding encoding) {
+		if (encodings == null) {
+			encodings = new ArrayList<>(1);
+		}
+
+		encodings.add(encoding);
+	}
+
 	public void setResponse(HTTPResponse response) throws Exception {
 		response.build(this);
 
@@ -98,7 +119,7 @@ public class HTTPPayload {
 		}
 	}
 
-	public void write(OutputStream out, boolean writeBody) throws Exception {
+	public void write(HTTPRequest req, OutputStream out, boolean writeBody) throws Exception {
 		out.write(status.responseBytes);
 		out.write(CRLF);
 
@@ -115,12 +136,40 @@ public class HTTPPayload {
 			actualHeaders.add(new Header("Cache-Control", cacheControl));
 		}
 
+		if (encodings != null) {
+			var sb = new StringBuilder();
+
+			for (var encoding : encodings) {
+				var name = encoding.name();
+
+				if (req.acceptedEncodings().contains(name)) {
+					if (!sb.isEmpty()) {
+						sb.append(", ");
+					}
+
+					sb.append(name);
+				}
+			}
+
+			if (!sb.isEmpty()) {
+				actualHeaders.add(new Header("Content-Encoding", sb.toString()));
+			}
+		}
+
 		for (var header : actualHeaders) {
 			out.write((header.key() + ": " + header.value()).getBytes());
 			out.write(CRLF);
 		}
 
 		if (body != null) {
+			if (encodings != null) {
+				for (var encoding : encodings) {
+					if (req.acceptedEncodings().contains(encoding.name())) {
+						body = encoding.encode(body);
+					}
+				}
+			}
+
 			long contentLength = body.length();
 			var contentType = body.type();
 

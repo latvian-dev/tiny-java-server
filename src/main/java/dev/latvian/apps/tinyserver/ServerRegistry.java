@@ -4,7 +4,6 @@ import dev.latvian.apps.tinyserver.http.HTTPHandler;
 import dev.latvian.apps.tinyserver.http.HTTPMethod;
 import dev.latvian.apps.tinyserver.http.HTTPRequest;
 import dev.latvian.apps.tinyserver.http.PathFileHandler;
-import dev.latvian.apps.tinyserver.http.RootPathFileHandler;
 import dev.latvian.apps.tinyserver.http.response.HTTPResponse;
 import dev.latvian.apps.tinyserver.ws.WSHandler;
 import dev.latvian.apps.tinyserver.ws.WSSession;
@@ -56,12 +55,14 @@ public interface ServerRegistry<REQ extends HTTPRequest> {
 		get(path, req -> res);
 	}
 
-	default void files(String path, Path directory, Duration cacheDuration, boolean autoInedx) {
-		if (autoInedx) {
-			get(path, new RootPathFileHandler<>(path, directory));
+	default void files(String path, Path directory, Duration cacheDuration, boolean autoIndex) {
+		var handler = new PathFileHandler<REQ>(path, directory, cacheDuration, autoIndex);
+
+		if (autoIndex) {
+			get(path, handler);
 		}
 
-		get(path + "/<path>", new PathFileHandler<>(path, directory, cacheDuration, autoInedx));
+		get(path + "/<path>", handler);
 	}
 
 	<WSS extends WSSession<REQ>> WSHandler<REQ, WSS> ws(String path, WSSessionFactory<REQ, WSS> factory);

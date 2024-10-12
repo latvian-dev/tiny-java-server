@@ -27,8 +27,14 @@ public class TinyServerTest {
 		server.get("/redirect", TinyServerTest::redirect);
 		server.post("/console", TinyServerTest::console);
 		server.get("/stop", TinyServerTest::stop);
-		server.files("/files", Path.of("src/test/resources"), Duration.ofMinutes(1L), true);
-		server.files("/files-no-index", Path.of("src/test/resources"), Duration.ofMinutes(1L), false);
+
+		server.get("/form", TinyServerTest::form);
+		server.get("/form-submit", TinyServerTest::formSubmit);
+		server.post("/form-submit", TinyServerTest::formSubmit);
+
+		var testFilesDir = Path.of("src/test/resources");
+		server.files("/files", testFilesDir, Duration.ofMinutes(1L), true);
+		server.files("/files-no-index", testFilesDir, Duration.ofMinutes(1L), false);
 
 		wsHandler = server.ws("/console/{console-type}", TestWSSession::new);
 
@@ -63,5 +69,21 @@ public class TinyServerTest {
 	private static HTTPResponse stop(TestRequest req) {
 		server.stop();
 		return HTTPResponse.noContent();
+	}
+
+	private static HTTPResponse form(TestRequest req) {
+		return HTTPResponse.ok().html("""
+			<form action="/form-submit" method="get" accept-charset="utf-8">
+			  <label for="fname">First name:</label><br>
+			  <input type="text" id="fname" name="fname" value="John"><br>
+			  <label for="lname">Last name:</label><br>
+			  <input type="text" id="lname" name="lname" value="Doe"><br><br>
+			  <input type="submit" value="Submit">
+			</form>""");
+	}
+
+	private static HTTPResponse formSubmit(TestRequest req) {
+		System.out.println("Form data: " + req.formData());
+		return HTTPResponse.redirect("/form");
 	}
 }

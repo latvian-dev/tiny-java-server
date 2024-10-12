@@ -4,11 +4,14 @@ import dev.latvian.apps.tinyserver.content.ByteContent;
 import dev.latvian.apps.tinyserver.content.FileContent;
 import dev.latvian.apps.tinyserver.content.MimeType;
 import dev.latvian.apps.tinyserver.content.ResponseContent;
+import dev.latvian.apps.tinyserver.http.response.encoding.DeflateResponseContentEncoding;
+import dev.latvian.apps.tinyserver.http.response.encoding.GZIPResponseContentEncoding;
+import dev.latvian.apps.tinyserver.http.response.encoding.ResponseContentEncoding;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.time.Duration;
-import java.util.function.Consumer;
+import java.util.function.UnaryOperator;
 
 public interface HTTPResponse {
 	static HTTPResponse ok() {
@@ -53,14 +56,12 @@ public interface HTTPResponse {
 		return new HTTPResponseWithCookie(this, key, value);
 	}
 
-	default HTTPResponse cookie(String key, String value, int maxAge) {
-		return new HTTPResponseWithCookie(this, key, value, new HTTPResponseWithCookie.Builder().maxAge(maxAge));
+	default HTTPResponse cookie(String key, String value, UnaryOperator<HTTPResponseWithCookie.Builder> properties) {
+		return new HTTPResponseWithCookie(this, key, value, properties.apply(new HTTPResponseWithCookie.Builder()));
 	}
 
-	default HTTPResponse cookie(String key, String value, Consumer<HTTPResponseWithCookie.Builder> properties) {
-		var builder = new HTTPResponseWithCookie.Builder();
-		properties.accept(builder);
-		return new HTTPResponseWithCookie(this, key, value, builder);
+	default HTTPResponse removeCookie(String key) {
+		return new HTTPResponseWithCookie(this, key, "", new HTTPResponseWithCookie.Builder().remove());
 	}
 
 	default HTTPResponse cache(boolean isPublic, Duration duration) {
@@ -87,6 +88,10 @@ public interface HTTPResponse {
 		return new ContentResponse(this, new ByteContent(bytes, type));
 	}
 
+	default HTTPResponse content(CharSequence string, String type) {
+		return new ContentResponse(this, new ByteContent(string.toString().getBytes(StandardCharsets.UTF_8), type));
+	}
+
 	default HTTPResponse content(Path file, String overrideType) {
 		return content(new FileContent(file, overrideType));
 	}
@@ -95,8 +100,12 @@ public interface HTTPResponse {
 		return content(file, "");
 	}
 
+	default HTTPResponse html(String text) {
+		return content(text, MimeType.HTML).gzip();
+	}
+
 	default HTTPResponse text(String text) {
-		return content(text.getBytes(StandardCharsets.UTF_8), MimeType.TEXT);
+		return content(text, MimeType.TEXT).gzip();
 	}
 
 	default HTTPResponse text(Iterable<String> text) {
@@ -104,6 +113,18 @@ public interface HTTPResponse {
 	}
 
 	default HTTPResponse json(String json) {
-		return content(json.getBytes(StandardCharsets.UTF_8), MimeType.JSON);
+		return content(json, MimeType.JSON).gzip();
+	}
+
+	default HTTPResponse encoding(ResponseContentEncoding encoding) {
+		return new HTTPResponseWithEncoding(this, encoding);
+	}
+
+	default HTTPResponse gzip() {
+		return encoding(GZIPResponseContentEncoding.INSTANCE);
+	}
+
+	default HTTPResponse deflate() {
+		return encoding(DeflateResponseContentEncoding.INSTANCE);
 	}
 }
