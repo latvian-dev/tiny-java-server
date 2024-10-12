@@ -47,6 +47,11 @@ public interface ServerRegistry<REQ extends HTTPRequest> {
 		http(HTTPMethod.DELETE, path, handler);
 	}
 
+	default void redirect(String path, String redirect) {
+		var res = HTTPResponse.redirect(redirect);
+		get(path, req -> res);
+	}
+
 	<WSS extends WSSession<REQ>> WSHandler<REQ, WSS> ws(String path, WSSessionFactory<REQ, WSS> factory);
 
 	default <WSS extends WSSession<REQ>> WSHandler<REQ, WSS> ws(String path) {

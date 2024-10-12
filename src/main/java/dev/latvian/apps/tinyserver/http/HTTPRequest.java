@@ -3,6 +3,8 @@ package dev.latvian.apps.tinyserver.http;
 import dev.latvian.apps.tinyserver.CompiledPath;
 import dev.latvian.apps.tinyserver.HTTPServer;
 import dev.latvian.apps.tinyserver.error.InvalidPathException;
+import dev.latvian.apps.tinyserver.http.response.HTTPResponse;
+import dev.latvian.apps.tinyserver.http.response.HTTPResponseBuilder;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -14,15 +16,18 @@ import java.util.Map;
 
 public class HTTPRequest {
 	private HTTPServer<?> server;
-	private String[] path = new String[0];
+	private String path = "";
+	private String[] pathParts = new String[0];
 	private Map<String, String> variables = Map.of();
+	private String queryString = "";
 	private Map<String, String> query = Map.of();
 	private List<Header> headers = List.of();
 	private InputStream bodyStream = null;
 
-	public void init(HTTPServer<?> server, String[] path, CompiledPath compiledPath, List<Header> headers, Map<String, String> query, InputStream bodyStream) {
+	public void init(HTTPServer<?> server, String path, String[] pathParts, CompiledPath compiledPath, List<Header> headers, String queryString, Map<String, String> query, InputStream bodyStream) {
 		this.server = server;
 		this.path = path;
+		this.pathParts = pathParts;
 
 		if (compiledPath.variables() > 0) {
 			this.variables = new HashMap<>(compiledPath.variables());
@@ -30,13 +35,14 @@ public class HTTPRequest {
 			for (var i = 0; i < compiledPath.parts().length; i++) {
 				var part = compiledPath.parts()[i];
 
-				if (part.variable() && i < path.length) {
-					variables.put(part.name(), path[i]);
+				if (part.variable() && i < pathParts.length) {
+					variables.put(part.name(), pathParts[i]);
 				}
 			}
 		}
 
 		this.headers = headers;
+		this.queryString = queryString;
 		this.query = query;
 		this.bodyStream = bodyStream;
 	}
@@ -59,6 +65,10 @@ public class HTTPRequest {
 		return s;
 	}
 
+	public String queryString() {
+		return queryString;
+	}
+
 	public Map<String, String> query() {
 		return query;
 	}
@@ -77,8 +87,16 @@ public class HTTPRequest {
 		return "";
 	}
 
-	public String[] path() {
+	public String path() {
 		return path;
+	}
+
+	public String fullPath() {
+		return path + (queryString.isEmpty() ? "" : "?" + queryString);
+	}
+
+	public String[] pathParts() {
+		return pathParts;
 	}
 
 	public InputStream bodyStream() {
@@ -102,5 +120,11 @@ public class HTTPRequest {
 
 	public String body() throws IOException {
 		return new String(bodyBytes(), StandardCharsets.UTF_8);
+	}
+
+	public void handlePayloadError(HTTPResponseBuilder payload, Exception error) {
+	}
+
+	public void afterResponse(HTTPResponseBuilder payload, HTTPResponse response) {
 	}
 }

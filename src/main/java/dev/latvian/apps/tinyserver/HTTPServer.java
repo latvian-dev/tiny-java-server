@@ -52,6 +52,7 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 		this.requestFactory = requestFactory;
 		this.handlers = new EnumMap<>(HTTPMethod.class);
 		this.rootHandlers = new EnumMap<>(HTTPMethod.class);
+		this.serverName = "dev.latvian.apps:tiny-java-server";
 	}
 
 	public void setServerName(String name) {
@@ -298,7 +299,7 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 						var handler = rootHandlers.get(method);
 
 						if (handler != null) {
-							req.init(this, new String[0], CompiledPath.EMPTY, headers, query, in);
+							req.init(this, "", new String[0], CompiledPath.EMPTY, headers, queryString, query, in);
 							builder = createBuilder(req, handler.handler());
 						}
 					} else {
@@ -320,14 +321,14 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 							var h = hl.staticHandlers().get(path);
 
 							if (h != null) {
-								req.init(this, pathParts, h.path(), headers, query, in);
+								req.init(this, path, pathParts, h.path(), headers, queryString, query, in);
 								builder = createBuilder(req, h.handler());
 							} else {
 								for (var dynamicHandler : hl.dynamicHandlers()) {
 									var matches = dynamicHandler.path().matches(pathParts);
 
 									if (matches != null) {
-										req.init(this, matches, dynamicHandler.path(), headers, query, in);
+										req.init(this, path, matches, dynamicHandler.path(), headers, queryString, query, in);
 										builder = createBuilder(req, dynamicHandler.handler());
 										break;
 									}
@@ -392,16 +393,15 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 
 		if (handler != null) {
 			try {
-				builder.setResponse(handler.handle(req));
+				var response = handler.handle(req);
+				builder.setResponse(response);
+				req.afterResponse(builder, response);
 			} catch (Exception ex) {
 				builder.setStatus(HTTPStatus.INTERNAL_ERROR);
-				handlePayloadError(builder, ex);
+				req.handlePayloadError(builder, ex);
 			}
 		}
 
 		return builder;
-	}
-
-	public void handlePayloadError(HTTPResponseBuilder payload, Exception error) {
 	}
 }
