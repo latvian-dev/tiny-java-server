@@ -1,19 +1,17 @@
 package dev.latvian.apps.tinyserver.test;
 
 import dev.latvian.apps.tinyserver.HTTPServer;
-import dev.latvian.apps.tinyserver.http.HTTPRequest;
 import dev.latvian.apps.tinyserver.http.response.HTTPResponse;
 import dev.latvian.apps.tinyserver.ws.WSHandler;
-import dev.latvian.apps.tinyserver.ws.WSSession;
 
 import java.io.IOException;
 
 public class TinyServerTest {
-	public static HTTPServer<HTTPRequest> server;
-	public static WSHandler<HTTPRequest, WSSession<HTTPRequest>> wsHandler;
+	public static HTTPServer<TestRequest> server;
+	public static WSHandler<TestRequest, TestWSSession> wsHandler;
 
 	public static void main(String[] args) {
-		server = new HTTPServer<>(HTTPRequest::new);
+		server = new HTTPServer<>(TestRequest::new);
 		server.setServerName("TinyServer Test");
 		server.setAddress("127.0.0.1");
 		server.setPort(8080);
@@ -32,32 +30,32 @@ public class TinyServerTest {
 		System.out.println("Started server at https://localhost:" + server.start());
 	}
 
-	private static HTTPResponse homepage(HTTPRequest req) {
+	private static HTTPResponse homepage(TestRequest req) {
 		return HTTPResponse.ok().text("Homepage");
 	}
 
-	private static HTTPResponse test(HTTPRequest req) {
+	private static HTTPResponse test(TestRequest req) {
 		return HTTPResponse.ok().text("Test");
 	}
 
-	private static HTTPResponse variable(HTTPRequest req) {
+	private static HTTPResponse variable(TestRequest req) {
 		return HTTPResponse.ok().text("Test: " + req.variable("test")).header("X-ABC", "Def");
 	}
 
-	private static HTTPResponse varpath(HTTPRequest req) {
+	private static HTTPResponse varpath(TestRequest req) {
 		return HTTPResponse.ok().text("Test: " + req.variable("test"));
 	}
 
-	private static HTTPResponse console(HTTPRequest req) throws IOException {
+	private static HTTPResponse console(TestRequest req) throws IOException {
 		wsHandler.broadcastText(req.body());
 		return HTTPResponse.noContent();
 	}
 
-	private static HTTPResponse redirect(HTTPRequest req) {
+	private static HTTPResponse redirect(TestRequest req) {
 		return HTTPResponse.redirect("/");
 	}
 
-	private static HTTPResponse stop(HTTPRequest req) {
+	private static HTTPResponse stop(TestRequest req) {
 		server.stop();
 		return HTTPResponse.noContent();
 	}

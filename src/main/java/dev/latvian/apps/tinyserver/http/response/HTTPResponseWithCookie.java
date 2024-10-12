@@ -53,9 +53,9 @@ public record HTTPResponseWithCookie(HTTPResponse original, String key, String v
 	}
 
 	@Override
-	public void build(HTTPResponseBuilder payload) throws Exception {
+	public void build(HTTPPayload payload) throws Exception {
 		var sb = new StringBuilder();
-		sb.append(key).append("=").append(value);
+		sb.append(value);
 
 		if (builder.domain != null) {
 			sb.append("; Domain=").append(builder.domain);
@@ -85,7 +85,7 @@ public record HTTPResponseWithCookie(HTTPResponse original, String key, String v
 			sb.append("; Secure");
 		}
 
-		payload.setHeader("Set-Cookie", sb);
+		payload.setCookie(key, sb.toString());
 		original.build(payload);
 	}
 }

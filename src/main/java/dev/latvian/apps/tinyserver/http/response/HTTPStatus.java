@@ -70,7 +70,7 @@ public enum HTTPStatus implements HTTPResponse {
 	}
 
 	@Override
-	public void build(HTTPResponseBuilder payload) {
+	public void build(HTTPPayload payload) {
 		payload.setStatus(this);
 	}
 }

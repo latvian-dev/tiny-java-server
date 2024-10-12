@@ -7,7 +7,7 @@ import dev.latvian.apps.tinyserver.http.HTTPMethod;
 import dev.latvian.apps.tinyserver.http.HTTPPathHandler;
 import dev.latvian.apps.tinyserver.http.HTTPRequest;
 import dev.latvian.apps.tinyserver.http.Header;
-import dev.latvian.apps.tinyserver.http.response.HTTPResponseBuilder;
+import dev.latvian.apps.tinyserver.http.response.HTTPPayload;
 import dev.latvian.apps.tinyserver.http.response.HTTPStatus;
 import dev.latvian.apps.tinyserver.ws.WSEndpointHandler;
 import dev.latvian.apps.tinyserver.ws.WSHandler;
@@ -170,6 +170,7 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 		InputStream in = null;
 		OutputStream out = null;
 		WSSession<REQ> upgradedToWebSocket = null;
+		long startTime = System.currentTimeMillis();
 
 		try {
 			in = new BufferedInputStream(socket.getInputStream(), bufferSize);
@@ -293,13 +294,13 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 				} else if (method == HTTPMethod.CONNECT) {
 					// no-op
 				} else {
-					HTTPResponseBuilder builder = null;
+					HTTPPayload builder = null;
 
 					if (path.isEmpty()) {
 						var handler = rootHandlers.get(method);
 
 						if (handler != null) {
-							req.init(this, "", new String[0], CompiledPath.EMPTY, headers, queryString, query, in);
+							req.init(this, startTime, "", new String[0], CompiledPath.EMPTY, headers, queryString, query, in);
 							builder = createBuilder(req, handler.handler());
 						}
 					} else {
@@ -321,14 +322,14 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 							var h = hl.staticHandlers().get(path);
 
 							if (h != null) {
-								req.init(this, path, pathParts, h.path(), headers, queryString, query, in);
+								req.init(this, startTime, path, pathParts, h.path(), headers, queryString, query, in);
 								builder = createBuilder(req, h.handler());
 							} else {
 								for (var dynamicHandler : hl.dynamicHandlers()) {
 									var matches = dynamicHandler.path().matches(pathParts);
 
 									if (matches != null) {
-										req.init(this, path, matches, dynamicHandler.path(), headers, queryString, query, in);
+										req.init(this, startTime, path, matches, dynamicHandler.path(), headers, queryString, query, in);
 										builder = createBuilder(req, dynamicHandler.handler());
 										break;
 									}
@@ -346,7 +347,7 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 					builder.write(out, writeBody);
 					out.flush();
 
-					upgradedToWebSocket = (WSSession) builder.wsSession();
+					upgradedToWebSocket = (WSSession) builder.getWSSession();
 
 					if (upgradedToWebSocket != null) {
 						upgradedToWebSocket.start(socket, in, out);
@@ -382,18 +383,19 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 		}
 	}
 
-	public HTTPResponseBuilder createBuilder(REQ req, @Nullable HTTPHandler<REQ> handler) {
-		var builder = new HTTPResponseBuilder();
+	public HTTPPayload createBuilder(REQ req, @Nullable HTTPHandler<REQ> handler) {
+		var builder = new HTTPPayload();
 
 		if (serverName != null && !serverName.isEmpty()) {
 			builder.setHeader("Server", serverName);
 		}
 
-		builder.setHeader("Date", HTTPResponseBuilder.DATE_TIME_FORMATTER.format(Instant.now()));
+		builder.setHeader("Date", HTTPPayload.DATE_TIME_FORMATTER.format(Instant.now()));
 
 		if (handler != null) {
 			try {
 				var response = handler.handle(req);
+				req.beforeResponse(builder, response);
 				builder.setResponse(response);
 				req.afterResponse(builder, response);
 			} catch (Exception ex) {

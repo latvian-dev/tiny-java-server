@@ -7,6 +7,7 @@ import dev.latvian.apps.tinyserver.content.ResponseContent;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.function.Consumer;
 
 public interface HTTPResponse {
@@ -42,7 +43,7 @@ public interface HTTPResponse {
 		return new RedirectResponse(EmptyResponse.INSTANCE, HTTPStatus.PERMANENT_REDIRECT, location);
 	}
 
-	void build(HTTPResponseBuilder payload) throws Exception;
+	void build(HTTPPayload payload) throws Exception;
 
 	default HTTPResponse header(String header, Object value) {
 		return new HTTPResponseWithHeader(this, header, String.valueOf(value));
@@ -62,16 +63,28 @@ public interface HTTPResponse {
 		return new HTTPResponseWithCookie(this, key, value, builder);
 	}
 
+	default HTTPResponse cache(boolean isPublic, int seconds) {
+		return new HTTPResponseWithCacheControl(this, isPublic, seconds);
+	}
+
 	default HTTPResponse noCache() {
-		return header("Cache-Control", "no-cache, no-store, must-revalidate");
+		return cache(true, 0);
 	}
 
 	default HTTPResponse publicCache(int seconds) {
-		return header("Cache-Control", "public, max-age=" + seconds);
+		return cache(true, seconds);
+	}
+
+	default HTTPResponse publicCache(Duration duration) {
+		return publicCache((int) duration.toSeconds());
 	}
 
 	default HTTPResponse privateCache(int seconds) {
-		return header("Cache-Control", "private, max-age=" + seconds);
+		return cache(false, seconds);
+	}
+
+	default HTTPResponse privateCache(Duration duration) {
+		return privateCache((int) duration.toSeconds());
 	}
 
 	default HTTPResponse content(ResponseContent content) {

@@ -1,12 +1,11 @@
 package dev.latvian.apps.tinyserver.test;
 
 import dev.latvian.apps.tinyserver.StatusCode;
-import dev.latvian.apps.tinyserver.http.HTTPRequest;
 import dev.latvian.apps.tinyserver.ws.WSSession;
 
-public class TestWSSession extends WSSession<HTTPRequest> {
+public class TestWSSession extends WSSession<TestRequest> {
 	@Override
-	public void onOpen(HTTPRequest req) {
+	public void onOpen(TestRequest req) {
 		sendText("Hello from " + id() + "! " + req.variables() + ", " + req.headers());
 	}
 
