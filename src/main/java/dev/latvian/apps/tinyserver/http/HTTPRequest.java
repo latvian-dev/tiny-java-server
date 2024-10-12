@@ -238,7 +238,7 @@ public class HTTPRequest {
 	public void afterResponse(HTTPPayload payload, HTTPResponse response) {
 	}
 
-	public void handlePayloadError(HTTPPayload payload, Exception error) {
+	public void handlePayloadError(HTTPPayload payload, Throwable error) {
 		error.printStackTrace();
 	}
 }

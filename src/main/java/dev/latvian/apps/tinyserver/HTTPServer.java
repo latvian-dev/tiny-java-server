@@ -398,10 +398,9 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 				var response = handler.handle(req);
 				req.beforeResponse(payload, response);
 				payload.setResponse(response);
-				req.afterResponse(payload, response);
-			} catch (Exception ex) {
+			} catch (Throwable error) {
 				payload.setStatus(HTTPStatus.INTERNAL_ERROR);
-				req.handlePayloadError(payload, ex);
+				req.handlePayloadError(payload, error);
 			}
 		}
 
