@@ -10,8 +10,4 @@ public class BadRequestError extends HTTPError {
 	public BadRequestError(String message, Throwable cause) {
 		super(HTTPStatus.BAD_REQUEST, message, cause);
 	}
-
-	public BadRequestError(Throwable cause) {
-		super(HTTPStatus.BAD_REQUEST, cause);
-	}
 }

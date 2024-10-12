@@ -46,7 +46,7 @@ public interface HTTPResponse {
 		return new RedirectResponse(EmptyResponse.INSTANCE, HTTPStatus.PERMANENT_REDIRECT, location);
 	}
 
-	void build(HTTPPayload payload) throws Exception;
+	void build(HTTPPayload payload);
 
 	default HTTPResponse header(String header, Object value) {
 		return new HTTPResponseWithHeader(this, header, String.valueOf(value));

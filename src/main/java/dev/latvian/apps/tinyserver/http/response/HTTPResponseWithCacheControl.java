@@ -8,7 +8,7 @@ public record HTTPResponseWithCacheControl(HTTPResponse original, String value) 
 	}
 
 	@Override
-	public void build(HTTPPayload payload) throws Exception {
+	public void build(HTTPPayload payload) {
 		payload.setCacheControl(value);
 		original.build(payload);
 	}

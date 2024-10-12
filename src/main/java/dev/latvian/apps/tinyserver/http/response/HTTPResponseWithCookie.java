@@ -71,7 +71,7 @@ public record HTTPResponseWithCookie(HTTPResponse original, String key, String v
 	}
 
 	@Override
-	public void build(HTTPPayload payload) throws Exception {
+	public void build(HTTPPayload payload) {
 		var sb = new StringBuilder();
 		sb.append(value);
 

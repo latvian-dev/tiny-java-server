@@ -4,7 +4,7 @@ import dev.latvian.apps.tinyserver.content.ResponseContent;
 
 public record ContentResponse(HTTPResponse original, ResponseContent body) implements HTTPResponse {
 	@Override
-	public void build(HTTPPayload payload) throws Exception {
+	public void build(HTTPPayload payload) {
 		original.build(payload);
 		payload.setBody(body);
 	}

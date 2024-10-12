@@ -8,6 +8,7 @@ import dev.latvian.apps.tinyserver.http.HTTPPathHandler;
 import dev.latvian.apps.tinyserver.http.HTTPRequest;
 import dev.latvian.apps.tinyserver.http.Header;
 import dev.latvian.apps.tinyserver.http.response.HTTPPayload;
+import dev.latvian.apps.tinyserver.http.response.HTTPResponse;
 import dev.latvian.apps.tinyserver.http.response.HTTPStatus;
 import dev.latvian.apps.tinyserver.ws.WSEndpointHandler;
 import dev.latvian.apps.tinyserver.ws.WSHandler;
@@ -385,23 +386,21 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 	}
 
 	public HTTPPayload createBuilder(REQ req, @Nullable HTTPHandler<REQ> handler) {
-		var payload = new HTTPPayload();
-
-		if (serverName != null && !serverName.isEmpty()) {
-			payload.addHeader("Server", serverName);
-		}
-
-		payload.addHeader("Date", HTTPPayload.DATE_TIME_FORMATTER.format(Instant.now()));
+		var payload = new HTTPPayload(serverName, Instant.now());
 
 		if (handler != null) {
+			HTTPResponse response;
+			Throwable error;
+
 			try {
-				var response = handler.handle(req);
-				req.beforeResponse(payload, response);
-				payload.setResponse(response);
-			} catch (Throwable error) {
-				payload.setStatus(HTTPStatus.INTERNAL_ERROR);
-				req.handlePayloadError(payload, error);
+				response = handler.handle(req);
+				error = null;
+			} catch (Throwable error1) {
+				response = HTTPStatus.INTERNAL_ERROR;
+				error = error1;
 			}
+
+			payload.setResponse(req.handleResponse(payload, response, error));
 		}
 
 		return payload;

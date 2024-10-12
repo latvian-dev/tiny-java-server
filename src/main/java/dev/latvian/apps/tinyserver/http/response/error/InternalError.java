@@ -10,8 +10,4 @@ public class InternalError extends HTTPError {
 	public InternalError(String message, Throwable cause) {
 		super(HTTPStatus.INTERNAL_ERROR, message, cause);
 	}
-
-	public InternalError(Throwable cause) {
-		super(HTTPStatus.INTERNAL_ERROR, cause);
-	}
 }

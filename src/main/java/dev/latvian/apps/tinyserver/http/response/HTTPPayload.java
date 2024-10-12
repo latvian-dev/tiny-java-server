@@ -10,6 +10,7 @@ import org.jetbrains.annotations.Nullable;
 
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -22,6 +23,8 @@ public class HTTPPayload {
 	public static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("EEE, dd MMM yyyy HH:mm:ss z", Locale.ENGLISH).withZone(ZoneId.of("GMT"));
 	private static final byte[] CRLF = "\r\n".getBytes(StandardCharsets.UTF_8);
 
+	private final String serverName;
+	private final Instant serverTime;
 	private HTTPStatus status = HTTPStatus.NO_CONTENT;
 	private final List<Header> headers = new ArrayList<>();
 	private String cacheControl = "";
@@ -29,6 +32,11 @@ public class HTTPPayload {
 	private ResponseContent body = null;
 	private WSSession<?> wsSession = null;
 	private List<ResponseContentEncoding> encodings;
+
+	public HTTPPayload(String serverName, Instant serverTime) {
+		this.serverName = serverName;
+		this.serverTime = serverTime;
+	}
 
 	public void setStatus(HTTPStatus status) {
 		this.status = status;
@@ -111,7 +119,7 @@ public class HTTPPayload {
 		encodings.add(encoding);
 	}
 
-	public void setResponse(HTTPResponse response) throws Exception {
+	public void setResponse(HTTPResponse response) {
 		response.build(this);
 
 		if (response instanceof WSResponse res) {
@@ -124,6 +132,13 @@ public class HTTPPayload {
 		out.write(CRLF);
 
 		var actualHeaders = new ArrayList<Header>(headers.size() + (cookies == null ? 0 : cookies.size()) + (cacheControl.isEmpty() ? 0 : 1));
+
+		if (serverName != null && !serverName.isEmpty()) {
+			actualHeaders.add(new Header("Server", serverName));
+		}
+
+		actualHeaders.add(new Header("Date", HTTPPayload.DATE_TIME_FORMATTER.format(serverTime)));
+
 		actualHeaders.addAll(headers);
 
 		if (cookies != null) {

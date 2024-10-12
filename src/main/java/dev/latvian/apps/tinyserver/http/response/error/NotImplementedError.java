@@ -10,8 +10,4 @@ public class NotImplementedError extends HTTPError {
 	public NotImplementedError(String message, Throwable cause) {
 		super(HTTPStatus.NOT_IMPLEMENTED, message, cause);
 	}
-
-	public NotImplementedError(Throwable cause) {
-		super(HTTPStatus.NOT_IMPLEMENTED, cause);
-	}
 }

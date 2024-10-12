@@ -10,8 +10,4 @@ public class NotFoundError extends HTTPError {
 	public NotFoundError(String message, Throwable cause) {
 		super(HTTPStatus.NOT_FOUND, message, cause);
 	}
-
-	public NotFoundError(Throwable cause) {
-		super(HTTPStatus.NOT_FOUND, cause);
-	}
 }

@@ -232,13 +232,11 @@ public class HTTPRequest {
 		return header("User-Agent");
 	}
 
-	public void beforeResponse(HTTPPayload payload, HTTPResponse response) {
-	}
+	public HTTPResponse handleResponse(HTTPPayload payload, HTTPResponse response, @Nullable Throwable error) {
+		if (error != null) {
+			error.printStackTrace();
+		}
 
-	public void afterResponse(HTTPPayload payload, HTTPResponse response) {
-	}
-
-	public void handlePayloadError(HTTPPayload payload, Throwable error) {
-		error.printStackTrace();
+		return response;
 	}
 }

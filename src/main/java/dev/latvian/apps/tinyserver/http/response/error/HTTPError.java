@@ -16,11 +16,6 @@ public class HTTPError extends RuntimeException {
 		this.status = status;
 	}
 
-	public HTTPError(HTTPStatus status, Throwable cause) {
-		super(cause);
-		this.status = status;
-	}
-
 	public HTTPStatus getStatus() {
 		return status;
 	}

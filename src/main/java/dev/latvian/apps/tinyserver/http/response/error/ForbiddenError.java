@@ -10,8 +10,4 @@ public class ForbiddenError extends HTTPError {
 	public ForbiddenError(String message, Throwable cause) {
 		super(HTTPStatus.FORBIDDEN, message, cause);
 	}
-
-	public ForbiddenError(Throwable cause) {
-		super(HTTPStatus.FORBIDDEN, cause);
-	}
 }

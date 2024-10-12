@@ -10,8 +10,4 @@ public class UnauthorizedError extends HTTPError {
 	public UnauthorizedError(String message, Throwable cause) {
 		super(HTTPStatus.UNAUTHORIZED, message, cause);
 	}
-
-	public UnauthorizedError(Throwable cause) {
-		super(HTTPStatus.UNAUTHORIZED, cause);
-	}
 }

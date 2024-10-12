@@ -4,7 +4,7 @@ import dev.latvian.apps.tinyserver.http.response.encoding.ResponseContentEncodin
 
 public record HTTPResponseWithEncoding(HTTPResponse original, ResponseContentEncoding encoding) implements HTTPResponse {
 	@Override
-	public void build(HTTPPayload payload) throws Exception {
+	public void build(HTTPPayload payload) {
 		payload.addEncoding(encoding);
 		original.build(payload);
 	}

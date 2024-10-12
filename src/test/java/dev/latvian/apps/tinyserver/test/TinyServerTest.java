@@ -2,6 +2,7 @@ package dev.latvian.apps.tinyserver.test;
 
 import dev.latvian.apps.tinyserver.HTTPServer;
 import dev.latvian.apps.tinyserver.http.response.HTTPResponse;
+import dev.latvian.apps.tinyserver.http.response.error.UnauthorizedError;
 import dev.latvian.apps.tinyserver.ws.WSHandler;
 
 import java.io.IOException;
@@ -27,6 +28,7 @@ public class TinyServerTest {
 		server.get("/redirect", TinyServerTest::redirect);
 		server.post("/console", TinyServerTest::console);
 		server.get("/stop", TinyServerTest::stop);
+		server.get("/error", TinyServerTest::error);
 
 		server.get("/form", TinyServerTest::form);
 		server.get("/form-submit", TinyServerTest::formSubmit);
@@ -69,6 +71,10 @@ public class TinyServerTest {
 	private static HTTPResponse stop(TestRequest req) {
 		server.stop();
 		return HTTPResponse.noContent();
+	}
+
+	private static HTTPResponse error(TestRequest req) {
+		throw new UnauthorizedError(null);
 	}
 
 	private static HTTPResponse form(TestRequest req) {
