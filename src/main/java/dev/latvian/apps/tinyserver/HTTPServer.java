@@ -192,6 +192,7 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 
 				if (socketChannel != null) {
 					socketChannel.socket().setSoTimeout((keepAliveTimeout + 1) * 1000);
+					socketChannel.finishConnect();
 					var connection = createConnection(socketChannel, Instant.now());
 					connection.lastActivity = now;
 					connections.add(connection);
