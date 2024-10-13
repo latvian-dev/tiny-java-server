@@ -3,53 +3,53 @@ package dev.latvian.apps.tinyserver.ws;
 import dev.latvian.apps.tinyserver.StatusCode;
 
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.net.Socket;
+import java.nio.ByteBuffer;
 import java.util.Deque;
-import java.util.Random;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.locks.LockSupport;
 
 class TXThread extends Thread {
 	private final WSSession<?> session;
-	private final Socket socket;
-	final InputStream in;
-	private final OutputStream out;
 	StatusCode closeReason;
 	boolean remoteClosed;
 	Deque<Frame> queue;
-	private final Random random;
 
-	public TXThread(WSSession<?> session, Socket socket, InputStream in, OutputStream out) {
+	public TXThread(WSSession<?> session) {
 		super("WSSession-" + session.id + "-TX");
 		this.session = session;
-		this.socket = socket;
-		this.in = in;
-		this.out = out;
 		this.queue = new ConcurrentLinkedDeque<>();
-		this.random = new Random();
 	}
 
 	@Override
 	public void run() {
-		while (session.txThread == this) {
-			var p = queue.poll();
+		var infoBuf = ByteBuffer.allocate(0);
 
-			if (p != null) {
+		while (session.txThread == this) {
+			var frame = queue.poll();
+
+			if (frame != null) {
 				try {
-					p.write(random, out);
+					int len = frame.info().bytes();
+
+					if (len > infoBuf.capacity()) {
+						infoBuf = ByteBuffer.allocate(len);
+					} else {
+						infoBuf.clear();
+					}
+
+					frame.info().put(infoBuf);
+					infoBuf.flip();
+					session.connection.socketChannel.write(infoBuf);
+
+					if (frame.info().size() > 0L) {
+						frame.applyMask();
+						session.connection.socketChannel.write(frame.payload());
+					}
 				} catch (IOException e) {
 					session.onError(e);
 					break;
 				}
 			} else {
-				try {
-					out.flush();
-				} catch (IOException ignored) {
-					break;
-				}
-
 				if (closeReason != null) {
 					break;
 				} else {
@@ -61,20 +61,6 @@ class TXThread extends Thread {
 		session.sessionMap.remove(session.id);
 		session.rxThread = null;
 		session.onClose(closeReason, remoteClosed);
-
-		try {
-			in.close();
-		} catch (Exception ignore) {
-		}
-
-		try {
-			out.close();
-		} catch (Exception ignore) {
-		}
-
-		try {
-			socket.close();
-		} catch (Exception ignore) {
-		}
+		session.connection.close();
 	}
 }

@@ -16,43 +16,61 @@ import dev.latvian.apps.tinyserver.ws.WSSession;
 import dev.latvian.apps.tinyserver.ws.WSSessionFactory;
 import org.jetbrains.annotations.Nullable;
 
-import java.io.BufferedOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
 import java.net.InetAddress;
-import java.net.ServerSocket;
-import java.net.Socket;
-import java.net.SocketTimeoutException;
+import java.net.InetSocketAddress;
 import java.net.URLDecoder;
+import java.nio.channels.ServerSocketChannel;
+import java.nio.channels.SocketChannel;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegistry<REQ> {
+	static <T extends AutoCloseable> T close(T t) {
+		if (t != null) {
+			try {
+				t.close();
+				return null;
+			} catch (Exception ignore) {
+			}
+		}
+
+		return t;
+	}
+
 	private final Supplier<REQ> requestFactory;
 	private final Map<HTTPMethod, HandlerList<REQ>> handlers;
 	private final Map<HTTPMethod, HTTPPathHandler<REQ>> rootHandlers;
+	protected final ConcurrentLinkedDeque<HTTPConnection> connections;
 	private String serverName;
-	private ServerSocket serverSocket;
+	//private Selector selector;
+	private ServerSocketChannel serverSocketChannel;
 	private String address;
 	private int port = 8080;
 	private int maxPortShift = 0;
 	private boolean daemon = false;
-	private int bufferSize = 8192;
+	private int bufferSize = 0;
+	private int maxKeepAliveConnections = 100;
+	private int keepAliveTimeout = 15;
 
 	public HTTPServer(Supplier<REQ> requestFactory) {
 		this.requestFactory = requestFactory;
 		this.handlers = new EnumMap<>(HTTPMethod.class);
 		this.rootHandlers = new EnumMap<>(HTTPMethod.class);
+		this.connections = new ConcurrentLinkedDeque<>();
 		this.serverName = "dev.latvian.apps:tiny-java-server";
 	}
 
@@ -80,44 +98,63 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 		this.bufferSize = bufferSize;
 	}
 
+	public void setMaxKeepAliveConnections(int max) {
+		this.maxKeepAliveConnections = max;
+	}
+
+	public void setKeepAliveTimeout(Duration duration) {
+		this.keepAliveTimeout = (int) duration.toSeconds();
+	}
+
+	public boolean isRunning() {
+		return serverSocketChannel != null;
+	}
+
 	public int start() {
-		if (serverSocket != null) {
+		if (serverSocketChannel != null) {
 			throw new IllegalStateException("Server is already running");
 		}
 
-		for (int i = port; i <= port + maxPortShift; i++) {
-			try {
-				serverSocket = new ServerSocket(i, 0, address == null ? null : InetAddress.getByName(address));
-				break;
-			} catch (Exception ignore) {
+		int boundPort = -1;
+
+		try {
+
+			serverSocketChannel = ServerSocketChannel.open();
+			serverSocketChannel.configureBlocking(false);
+
+			var socket = serverSocketChannel.socket();
+
+			if (bufferSize > 0) {
+				socket.setReceiveBufferSize(bufferSize);
 			}
+
+			var inetAddress = address == null ? null : InetAddress.getByName(address);
+
+			for (int i = port; i <= port + maxPortShift; i++) {
+				try {
+					socket.bind(new InetSocketAddress(inetAddress, i));
+					boundPort = i;
+					break;
+				} catch (Exception ignore) {
+				}
+			}
+
+			// selector = Selector.open();
+			// serverSocketChannel.register(selector, serverSocketChannel.validOps());
+		} catch (IOException ex) {
+			throw new RuntimeException(ex);
 		}
 
-		if (serverSocket == null) {
+		if (boundPort == -1) {
 			throw new BindFailedException(port, port + maxPortShift);
 		}
 
-		try {
-			serverSocket.setReceiveBufferSize(bufferSize);
-		} catch (Exception ex) {
-			ex.printStackTrace();
-		}
-
-		var thread = new Thread(this);
-		thread.setDaemon(daemon);
-		thread.start();
-		return serverSocket.getLocalPort();
+		startThread();
+		return boundPort;
 	}
 
 	public void stop() {
-		if (serverSocket != null) {
-			try {
-				serverSocket.close();
-			} catch (IOException ignore) {
-			}
-		}
-
-		serverSocket = null;
+		serverSocketChannel = null;
 	}
 
 	@Override
@@ -147,69 +184,50 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 
 	@Override
 	public void run() {
-		try (var s = serverSocket) {
-			while (serverSocket != null) {
-				var socket = s.accept();
-				long startTime = System.nanoTime();
-				socket.setSoTimeout(5000);
-				Thread.startVirtualThread(new ClientHandler(this, socket, startTime));
-				//new ClientHandler(this, socket, startTime).run();
+		try (var ssc = serverSocketChannel) {
+			while (isRunning()) {
+				var socketChannel = ssc.accept();
+				long now = System.currentTimeMillis();
+				long timeout = keepAliveTimeout * 1000L;
+
+				if (socketChannel != null) {
+					socketChannel.socket().setSoTimeout((keepAliveTimeout + 1) * 1000);
+					var connection = createConnection(socketChannel, Instant.now());
+					connection.lastActivity = now;
+					connections.add(connection);
+					queueSession(connection);
+				}
+
+				for (var c : connections) {
+					if (now - c.lastActivity > timeout) {
+						c.close();
+					}
+				}
+
+				connections.removeIf(HTTPConnection::isClosed);
+				Thread.sleep(1L);
 			}
 		} catch (Exception ignore) {
 		}
 	}
 
-	private String readLine(InputStream in, Socket socket, long startTime) throws IOException {
-		var sb = new StringBuilder();
-		int b;
+	protected void handleClient(HTTPConnection connection) {
+		connection.lastActivity = System.currentTimeMillis();
+		connection.beforeHandshake();
 
-		try {
-			while ((b = in.read()) != -1) {
-				if (b == '\n') {
-					break;
-				}
-
-				if (b != '\r') {
-					sb.append((char) b);
-				}
-			}
-		} catch (Throwable ex) {
-			socketError(socket, startTime, ex);
-		}
-
-		return sb.toString();
-	}
-
-	private record ClientHandler(HTTPServer<?> server, Socket socket, long startTime) implements Runnable {
-		@Override
-		public void run() {
-			server.handleNewClient(socket, startTime);
-		}
-	}
-
-	protected void handleNewClient(Socket socket, long startTime) {
-		try {
-			handleClient(socket, startTime);
-		} catch (Throwable ex) {
-			ex.printStackTrace();
-		}
-	}
-
-	protected void handleClient(Socket socket, long startTime) {
-		socketOpened(socket, startTime);
-
-		InputStream in = null;
-		OutputStream out = null;
 		WSSession<REQ> upgradedToWebSocket = null;
+		boolean keepAlive = false;
 
 		try {
-			in = socket.getInputStream();
-
-			var firstLineStr = readLine(in, socket, startTime);
+			var firstLineStr = connection.readCRLF();
 
 			if (!firstLineStr.toLowerCase().endsWith(" http/1.1")) {
+				connection.close();
+				connections.remove(connection);
 				return;
 			}
+
+			var startTime = Instant.now();
 
 			firstLineStr = firstLineStr.substring(0, firstLineStr.length() - 9).trim();
 			var firstLine = firstLineStr.split(" ", 2);
@@ -258,20 +276,26 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 				var headers = new ArrayList<Header>();
 
 				while (true) {
-					var line = readLine(in, socket, startTime);
+					var line = connection.readCRLF();
 
-					if (line.isBlank()) {
+					if (line.isEmpty()) {
 						break;
 					}
 
 					var parts = line.split(":", 2);
 
 					if (parts.length == 2) {
-						headers.add(new Header(parts[0].trim(), parts[1].trim()));
+						var header = new Header(parts[0].trim(), parts[1].trim());
+						headers.add(header);
+
+						if (header.is("Connection") && header.value().equalsIgnoreCase("keep-alive")) {
+							keepAlive = true;
+						}
 					}
 				}
 
 				var req = requestFactory.get();
+				req.preInit(connection, startTime, originalMethod);
 
 				if (method == HTTPMethod.OPTIONS) {
 					var allowed = new HashSet<HTTPMethod>();
@@ -318,9 +342,8 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 					var builder = createBuilder(req, null);
 					builder.setStatus(HTTPStatus.NO_CONTENT);
 					builder.addHeader("Allow", allowed.stream().map(HTTPMethod::name).collect(Collectors.joining(",")));
-					out = new BufferedOutputStream(socket.getOutputStream(), bufferSize);
-					builder.write(req, out, writeBody);
-					out.flush();
+					builder.process(req, keepAliveTimeout, keepAlive ? maxKeepAliveConnections : 0);
+					builder.write(connection.socketChannel, writeBody);
 				} else if (method == HTTPMethod.TRACE) {
 					// no-op
 				} else if (method == HTTPMethod.CONNECT) {
@@ -332,7 +355,7 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 						var handler = rootHandlers.get(method);
 
 						if (handler != null) {
-							req.init(this, originalMethod, startTime, "", new String[0], CompiledPath.EMPTY, headers, queryString, query, in);
+							req.init("", new String[0], CompiledPath.EMPTY, headers, queryString, query);
 							builder = createBuilder(req, handler.handler());
 						}
 					} else {
@@ -354,14 +377,14 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 							var h = hl.staticHandlers().get(path);
 
 							if (h != null) {
-								req.init(this, originalMethod, startTime, path, pathParts, h.path(), headers, queryString, query, in);
+								req.init(path, pathParts, h.path(), headers, queryString, query);
 								builder = createBuilder(req, h.handler());
 							} else {
 								for (var dynamicHandler : hl.dynamicHandlers()) {
 									var matches = dynamicHandler.path().matches(pathParts);
 
 									if (matches != null) {
-										req.init(this, originalMethod, startTime, path, matches, dynamicHandler.path(), headers, queryString, query, in);
+										req.init(path, matches, dynamicHandler.path(), headers, queryString, query);
 										builder = createBuilder(req, dynamicHandler.handler());
 										break;
 									}
@@ -375,45 +398,29 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 						builder.setStatus(HTTPStatus.NOT_FOUND);
 					}
 
-					out = new BufferedOutputStream(socket.getOutputStream(), bufferSize);
-					builder.write(req, out, writeBody);
-					out.flush();
+					builder.process(req, keepAliveTimeout, keepAlive ? maxKeepAliveConnections : 0);
+					builder.write(connection.socketChannel, writeBody);
 
 					upgradedToWebSocket = (WSSession) builder.getWSSession();
 
 					if (upgradedToWebSocket != null) {
-						upgradedToWebSocket.start(socket, in, out);
+						upgradedToWebSocket.start(connection);
 						upgradedToWebSocket.onOpen(req);
 					}
 				}
 			}
 		} catch (Throwable ex) {
-			socketError(socket, startTime, ex);
+			connection.error(ex);
 		}
 
 		if (upgradedToWebSocket == null) {
-			try {
-				if (in != null) {
-					in.close();
-				}
-			} catch (Exception ignored) {
+			if (keepAlive) {
+				handleClient(connection);
+			} else {
+				connection.close();
 			}
-
-			try {
-				if (out != null) {
-					out.close();
-				}
-			} catch (Exception ignored) {
-			}
-
-			try {
-				if (socket != null) {
-					socket.close();
-				}
-			} catch (Exception ignored) {
-			}
-
-			socketClosed(socket, startTime);
+		} else {
+			connections.remove(connection);
 		}
 	}
 
@@ -439,19 +446,21 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 		return payload;
 	}
 
-	protected void socketOpened(Socket socket, long startTime) {
-		System.out.println("\u001B[32mAccepted connection from " + socket.getPort() + " @ " + startTime + "\u001B[0m");
+	protected HTTPConnection createConnection(SocketChannel socketChannel, Instant createdTime) throws IOException {
+		return new HTTPConnection(this, socketChannel, createdTime);
 	}
 
-	protected void socketClosed(Socket socket, long startTime) {
-		System.out.println("\u001B[34mClosed connection from " + socket.getPort() + " @ " + startTime + "\u001B[0m");
+	protected void startThread() {
+		var thread = new Thread(this);
+		thread.setDaemon(daemon);
+		thread.start();
 	}
 
-	protected void socketError(Socket socket, long startTime, Throwable error) {
-		if (error instanceof SocketTimeoutException) {
-			System.out.println("\u001B[31mConnection " + socket.getPort() + " @ " + startTime + " timed out\u001B[0m");
-		} else {
-			error.printStackTrace();
-		}
+	protected void queueSession(HTTPConnection session) {
+		Thread.startVirtualThread(session);
+	}
+
+	public Collection<HTTPConnection> connections() {
+		return Collections.unmodifiableCollection(connections);
 	}
 }

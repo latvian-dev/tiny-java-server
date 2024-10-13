@@ -1,6 +1,7 @@
 package dev.latvian.apps.tinyserver.http;
 
 import dev.latvian.apps.tinyserver.CompiledPath;
+import dev.latvian.apps.tinyserver.HTTPConnection;
 import dev.latvian.apps.tinyserver.HTTPServer;
 import dev.latvian.apps.tinyserver.error.InvalidPathException;
 import dev.latvian.apps.tinyserver.http.response.HTTPPayload;
@@ -9,9 +10,10 @@ import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.net.URLDecoder;
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -21,25 +23,29 @@ import java.util.Map;
 import java.util.Set;
 
 public class HTTPRequest {
-	private HTTPServer<?> server;
+	private HTTPConnection connection;
+	private Instant startTime;
 	private HTTPMethod method;
-	private long startTime = 0L;
 	private String path = "";
 	private String[] pathParts = new String[0];
 	private Map<String, String> variables = Map.of();
 	private String queryString = "";
 	private Map<String, String> query = Map.of();
 	private List<Header> headers = List.of();
-	private InputStream bodyStream = null;
 	private Map<String, String> cookies = null;
 	private Map<String, String> formData = null;
 	private Set<String> acceptedEncodings = null;
+	private ByteBuffer bodyBuffer = null;
 
 	@ApiStatus.Internal
-	public void init(HTTPServer<?> server, HTTPMethod method, long startTime, String path, String[] pathParts, CompiledPath compiledPath, List<Header> headers, String queryString, Map<String, String> query, InputStream bodyStream) {
-		this.server = server;
-		this.method = method;
+	public final void preInit(HTTPConnection session, Instant startTime, HTTPMethod method) {
+		this.connection = session;
 		this.startTime = startTime;
+		this.method = method;
+	}
+
+	@ApiStatus.Internal
+	public final void init(String path, String[] pathParts, CompiledPath compiledPath, List<Header> headers, String queryString, Map<String, String> query) {
 		this.path = path;
 		this.pathParts = pathParts;
 
@@ -58,22 +64,25 @@ public class HTTPRequest {
 		this.headers = headers;
 		this.queryString = queryString;
 		this.query = query;
-		this.bodyStream = bodyStream;
 		afterInit();
 	}
 
 	public void afterInit() {
 	}
 
+	public HTTPConnection connection() {
+		return connection;
+	}
+
 	public HTTPServer<?> server() {
-		return server;
+		return connection.server;
 	}
 
 	public HTTPMethod method() {
 		return method;
 	}
 
-	public long startTime() {
+	public Instant startTime() {
 		return startTime;
 	}
 
@@ -133,27 +142,35 @@ public class HTTPRequest {
 		return pathParts;
 	}
 
-	public InputStream bodyStream() {
-		if (bodyStream == null) {
-			return InputStream.nullInputStream();
+	public ByteBuffer bodyBuffer() throws IOException {
+		if (bodyBuffer == null) {
+			var h = header("Content-Length");
+
+			if (h.isEmpty()) {
+				throw new IOException("Content-Length header not found, chunked encoding not supported");
+			}
+
+			int len = Integer.parseInt(h);
+			bodyBuffer = ByteBuffer.allocate(len);
+
+			while (len > 0) {
+				int read = connection.socketChannel.read(bodyBuffer);
+
+				if (read == -1) {
+					throw new IOException("End of stream reached");
+				}
+
+				len -= read;
+			}
+
+			bodyBuffer.flip();
 		}
 
-		return bodyStream;
-	}
-
-	public byte[] bodyBytes() throws IOException {
-		var h = header("content-length");
-
-		if (h.isEmpty()) {
-			return bodyStream().readAllBytes();
-		}
-
-		int len = Integer.parseInt(h);
-		return bodyStream().readNBytes(len);
+		return bodyBuffer.position(0);
 	}
 
 	public String body() throws IOException {
-		return new String(bodyBytes(), StandardCharsets.UTF_8);
+		return StandardCharsets.UTF_8.decode(bodyBuffer()).toString();
 	}
 
 	public Map<String, String> cookies() {

@@ -3,6 +3,7 @@ package dev.latvian.apps.tinyserver.http.response;
 import dev.latvian.apps.tinyserver.StatusCode;
 import org.jetbrains.annotations.Nullable;
 
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 
 public enum HTTPStatus implements HTTPResponse {
@@ -79,17 +80,25 @@ public enum HTTPStatus implements HTTPResponse {
 		return null;
 	}
 
-	public final StatusCode statusCode;
-	public final byte[] responseBytes;
+	private final StatusCode statusCode;
+	private final ByteBuffer responseBuffer;
 
 	HTTPStatus(int code, String message) {
 		this.statusCode = new StatusCode(code, message);
-		this.responseBytes = ("HTTP/1.1 " + statusCode.code() + " " + statusCode.message()).getBytes(StandardCharsets.UTF_8);
+		this.responseBuffer = ByteBuffer.wrap(("HTTP/1.1 " + statusCode.code() + " " + statusCode.message() + "\r\n").getBytes(StandardCharsets.UTF_8));
 	}
 
 	@Override
 	public HTTPStatus status() {
 		return this;
+	}
+
+	public StatusCode statusCode() {
+		return statusCode;
+	}
+
+	public ByteBuffer responseBuffer() {
+		return responseBuffer;
 	}
 
 	@Override

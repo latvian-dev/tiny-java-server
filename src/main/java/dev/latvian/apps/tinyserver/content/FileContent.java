@@ -2,7 +2,8 @@ package dev.latvian.apps.tinyserver.content;
 
 import java.io.IOException;
 import java.io.OutputStream;
-import java.net.http.HttpRequest;
+import java.nio.ByteBuffer;
+import java.nio.channels.WritableByteChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
@@ -40,7 +41,15 @@ public record FileContent(Path file, String overrideType) implements ResponseCon
 	}
 
 	@Override
-	public HttpRequest.BodyPublisher bodyPublisher() throws IOException {
-		return HttpRequest.BodyPublishers.ofByteArray(Files.readAllBytes(file));
+	public void transferTo(WritableByteChannel channel) throws IOException {
+		try (var fileChannel = Files.newByteChannel(file)) {
+			var buf = ByteBuffer.allocate(8192);
+
+			while (fileChannel.read(buf) != -1) {
+				buf.flip();
+				channel.write(buf);
+				buf.clear();
+			}
+		}
 	}
 }

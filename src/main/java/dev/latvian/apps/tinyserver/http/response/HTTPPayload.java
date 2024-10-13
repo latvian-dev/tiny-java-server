@@ -8,7 +8,9 @@ import dev.latvian.apps.tinyserver.ws.WSResponse;
 import dev.latvian.apps.tinyserver.ws.WSSession;
 import org.jetbrains.annotations.Nullable;
 
-import java.io.OutputStream;
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.channels.WritableByteChannel;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.ZoneId;
@@ -22,6 +24,7 @@ import java.util.Map;
 public class HTTPPayload {
 	public static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("EEE, dd MMM yyyy HH:mm:ss z", Locale.ENGLISH).withZone(ZoneId.of("GMT"));
 	private static final byte[] CRLF = "\r\n".getBytes(StandardCharsets.UTF_8);
+	private static final byte[] HSEP = ": ".getBytes(StandardCharsets.UTF_8);
 
 	private final String serverName;
 	private final Instant serverTime;
@@ -32,6 +35,7 @@ public class HTTPPayload {
 	private ResponseContent body = null;
 	private WSSession<?> wsSession = null;
 	private List<ResponseContentEncoding> encodings;
+	private List<Header> responseHeaders = null;
 
 	public HTTPPayload(String serverName, Instant serverTime) {
 		this.serverName = serverName;
@@ -129,29 +133,8 @@ public class HTTPPayload {
 		}
 	}
 
-	public void write(HTTPRequest req, OutputStream out, boolean writeBody) throws Exception {
-		out.write(status.responseBytes);
-		out.write(CRLF);
-
-		var actualHeaders = new ArrayList<Header>(headers.size() + (cookies == null ? 0 : cookies.size()) + (cacheControl.isEmpty() ? 0 : 1));
-
-		if (serverName != null && !serverName.isEmpty()) {
-			actualHeaders.add(new Header("Server", serverName));
-		}
-
-		actualHeaders.add(new Header("Date", HTTPPayload.DATE_TIME_FORMATTER.format(serverTime)));
-
-		actualHeaders.addAll(headers);
-
-		if (cookies != null) {
-			for (var cookie : cookies.entrySet()) {
-				actualHeaders.add(new Header("Set-Cookie", cookie.getKey() + "=" + cookie.getValue()));
-			}
-		}
-
-		if (!cacheControl.isEmpty()) {
-			actualHeaders.add(new Header("Cache-Control", cacheControl));
-		}
+	public void process(HTTPRequest req, int keepAliveTimeout, int maxKeepAliveConnections) throws IOException {
+		String responseEncodings = null;
 
 		if (encodings != null) {
 			var sb = new StringBuilder();
@@ -160,6 +143,8 @@ public class HTTPPayload {
 				var name = encoding.name();
 
 				if (req.acceptedEncodings().contains(name)) {
+					body = encoding.encode(body);
+
 					if (!sb.isEmpty()) {
 						sb.append(", ");
 					}
@@ -169,42 +154,85 @@ public class HTTPPayload {
 			}
 
 			if (!sb.isEmpty()) {
-				actualHeaders.add(new Header("Content-Encoding", sb.toString()));
+				responseEncodings = sb.toString();
 			}
 		}
 
-		for (var header : actualHeaders) {
-			out.write((header.key() + ": " + header.value()).getBytes());
-			out.write(CRLF);
+		responseHeaders = new ArrayList<>(headers.size()
+			+ (cookies == null ? 0 : cookies.size())
+			+ (cacheControl.isEmpty() ? 0 : 1)
+			+ (body == null ? 0 : 2)
+			+ (responseEncodings == null ? 0 : 1)
+		);
+
+		if (serverName != null && !serverName.isEmpty()) {
+			responseHeaders.add(new Header("Server", serverName));
+		}
+
+		responseHeaders.add(new Header("Date", HTTPPayload.DATE_TIME_FORMATTER.format(serverTime)));
+
+		responseHeaders.addAll(headers);
+
+		if (cookies != null) {
+			for (var cookie : cookies.entrySet()) {
+				responseHeaders.add(new Header("Set-Cookie", cookie.getKey() + "=" + cookie.getValue()));
+			}
+		}
+
+		if (!cacheControl.isEmpty()) {
+			responseHeaders.add(new Header("Cache-Control", cacheControl));
 		}
 
 		if (body != null) {
-			if (encodings != null) {
-				for (var encoding : encodings) {
-					if (req.acceptedEncodings().contains(encoding.name())) {
-						body = encoding.encode(body);
-					}
-				}
+			if (responseEncodings != null) {
+				responseHeaders.add(new Header("Content-Encoding", responseEncodings));
 			}
 
 			long contentLength = body.length();
 			var contentType = body.type();
 
 			if (contentLength >= 0L) {
-				out.write(("Content-Length: " + Long.toUnsignedString(contentLength)).getBytes());
-				out.write(CRLF);
+				responseHeaders.add(new Header("Content-Length", Long.toUnsignedString(contentLength)));
 			}
 
 			if (contentType != null && !contentType.isEmpty()) {
-				out.write(("Content-Type: " + contentType).getBytes());
-				out.write(CRLF);
+				responseHeaders.add(new Header("Content-Type", contentType));
 			}
 		}
 
-		out.write(CRLF);
+		if (maxKeepAliveConnections > 0) {
+			responseHeaders.add(new Header("Connection", "keep-alive"));
+			responseHeaders.add(new Header("Keep-Alive", "timeout=" + keepAliveTimeout + ", max=" + maxKeepAliveConnections));
+		} else {
+			responseHeaders.add(new Header("Connection", "close"));
+		}
+	}
+
+	public void write(WritableByteChannel channel, boolean writeBody) throws IOException {
+		channel.write(status.responseBuffer().duplicate());
+
+		int size = 2;
+
+		for (var h : responseHeaders) {
+			size += h.key().length() + 2 + h.value().length() + 2;
+		}
+
+		var buf = ByteBuffer.allocate(size);
+
+		for (var h : responseHeaders) {
+			buf.put(h.key().getBytes(StandardCharsets.US_ASCII));
+			buf.put(HSEP);
+			buf.put(h.value().getBytes(StandardCharsets.US_ASCII));
+			buf.put(CRLF);
+		}
+
+		buf.put(CRLF);
+		buf.flip();
+
+		channel.write(buf);
 
 		if (body != null && writeBody) {
-			body.write(out);
+			body.transferTo(channel);
 		}
 	}
 }

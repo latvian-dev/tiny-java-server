@@ -1,23 +1,25 @@
 package dev.latvian.apps.tinyserver.ws;
 
+import dev.latvian.apps.tinyserver.HTTPConnection;
 import dev.latvian.apps.tinyserver.StatusCode;
 import dev.latvian.apps.tinyserver.http.HTTPRequest;
 
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.net.Socket;
+import java.nio.ByteBuffer;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.locks.LockSupport;
 
 public class WSSession<REQ extends HTTPRequest> {
+	HTTPConnection connection;
 	Map<UUID, WSSession<?>> sessionMap;
 	UUID id;
 	TXThread txThread;
 	RXThread rxThread;
 
-	public final void start(Socket socket, InputStream in, OutputStream out) {
-		this.txThread = new TXThread(this, socket, in, out);
+	public final void start(HTTPConnection connection) {
+		this.connection = connection;
+
+		this.txThread = new TXThread(this);
 		this.txThread.setDaemon(true);
 
 		this.rxThread = new RXThread(this);
@@ -56,7 +58,10 @@ public class WSSession<REQ extends HTTPRequest> {
 	public void onTextMessage(String message) {
 	}
 
-	public void onBinaryMessage(byte[] message) {
+	public void onBinaryMessage(ByteBuffer message) {
+	}
+
+	public void onPing(ByteBuffer payload) {
 	}
 
 	public final void close(WSCloseStatus status, String reason) {

@@ -1,25 +1,30 @@
 package dev.latvian.apps.tinyserver.test;
 
-import dev.latvian.apps.tinyserver.HTTPServer;
+import dev.latvian.apps.tinyserver.HTTPConnection;
 import dev.latvian.apps.tinyserver.http.response.HTTPResponse;
 import dev.latvian.apps.tinyserver.http.response.error.UnauthorizedError;
 import dev.latvian.apps.tinyserver.ws.WSHandler;
 
 import java.io.IOException;
+import java.net.Socket;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.stream.Collectors;
 
 public class TinyServerTest {
-	public static HTTPServer<TestRequest> server;
+	public static TestServer server;
 	public static WSHandler<TestRequest, TestWSSession> wsHandler;
 
-	public static void main(String[] args) {
-		server = new HTTPServer<>(TestRequest::new);
+	public static void main(String[] args) throws IOException {
+		server = new TestServer();
 		server.setServerName("TinyServer Test");
 		server.setAddress("127.0.0.1");
 		server.setPort(8080);
 		server.setMaxPortShift(10);
 		server.setDaemon(false);
+		server.setKeepAliveTimeout(Duration.ofSeconds(5L));
+		server.setMaxKeepAliveConnections(5);
 
 		server.get("/", TinyServerTest::homepage);
 		server.get("/test", TinyServerTest::test);
@@ -41,10 +46,29 @@ public class TinyServerTest {
 		wsHandler = server.ws("/console/{console-type}", TestWSSession::new);
 
 		System.out.println("Started server at https://localhost:" + server.start());
+
+		while (server.isRunning()) {
+			var sb = new StringBuilder();
+			int c;
+
+			while ((c = System.in.read()) != '\n') {
+				sb.append((char) c);
+			}
+
+			var in = sb.toString();
+
+			if (in.startsWith("/")) {
+				simulateRequest(in);
+			} else if (in.equals("s")) {
+				System.out.println("Sessions: " + server.connections().size() + " " + server.connections());
+			} else if (in.startsWith("+")) {
+				wsHandler.broadcastText(in.substring(1));
+			}
+		}
 	}
 
 	private static HTTPResponse homepage(TestRequest req) {
-		return HTTPResponse.ok().text("Homepage " + req.startTime());
+		return HTTPResponse.ok().text("Homepage " + req.startTime() + "\n\n" + req.server().connections().stream().map(HTTPConnection::toString).collect(Collectors.joining("\n")));
 	}
 
 	private static HTTPResponse test(TestRequest req) {
@@ -91,5 +115,40 @@ public class TinyServerTest {
 	private static HTTPResponse formSubmit(TestRequest req) {
 		System.out.println("Form data: " + req.formData());
 		return HTTPResponse.redirect("/form");
+	}
+
+	public static void simulateRequest(String path) {
+		var list = new ArrayList<String>();
+		list.add("GET " + path + " HTTP/1.1");
+		list.add("Host: localhost");
+		list.add("Connection: close");
+		list.add("");
+
+		try (var socket = new Socket("localhost", 8080)) {
+			socket.setSoTimeout(1000);
+
+			try (var out = socket.getOutputStream()) {
+				for (var line : list) {
+					out.write((line + "\r\n").getBytes());
+				}
+
+				out.flush();
+
+				var sb = new StringBuilder();
+
+				try (var in = socket.getInputStream()) {
+					var buffer = new byte[1024];
+					var read = 0;
+
+					while ((read = in.read(buffer)) != -1) {
+						sb.append(new String(buffer, 0, read));
+					}
+				}
+
+				System.out.println("Response:\n" + sb.toString().replace("\r\n", "<CRLF>\n"));
+			}
+		} catch (Exception ex) {
+			ex.printStackTrace();
+		}
 	}
 }

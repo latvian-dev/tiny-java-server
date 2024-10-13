@@ -2,6 +2,7 @@ package dev.latvian.apps.tinyserver.ws;
 
 import dev.latvian.apps.tinyserver.StatusCode;
 
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.locks.LockSupport;
 
@@ -18,38 +19,47 @@ class RXThread extends Thread {
 	public void run() {
 		while (session.txThread.closeReason == null) {
 			try {
-				var frame = Frame.read(session.txThread.in);
+				var info = FrameInfo.read(session.connection);
+				Frame frame;
 
-				if (frame == null) {
-					break;
+				if (info.size() == 0) {
+					frame = new Frame(info, Frame.EMPTY_PAYLOAD);
+				} else {
+					var payload = ByteBuffer.allocate(info.size());
+					session.connection.socketChannel.read(payload);
+					payload.flip();
+					frame = new Frame(info, payload);
+					frame.applyMask();
 				}
 
-				var payload = frame.payload();
-
-				switch (frame.opcode()) {
+				switch (info.opcode()) {
 					case CONTINUOUS, TEXT, BINARY -> {
 						lastFrame = frame.appendTo(lastFrame);
 
-						if (frame.fin()) {
-							switch (lastFrame.opcode()) {
-								case TEXT -> session.onTextMessage(new String(lastFrame.payload(), StandardCharsets.UTF_8));
+						if (info.fin()) {
+							switch (lastFrame.info().opcode()) {
+								case TEXT -> session.onTextMessage(StandardCharsets.UTF_8.decode(lastFrame.payload()).toString());
 								case BINARY -> session.onBinaryMessage(lastFrame.payload());
 							}
 
 							lastFrame = null;
 						}
 					}
-					case PING -> session.send(new Frame(Opcode.PONG, frame.mask(), frame.fin(), frame.rsv1(), frame.rsv2(), frame.rsv3(), payload));
+					case PING -> {
+						session.onPing(frame.payload());
+						session.send(new Frame(new FrameInfo(Opcode.PONG, info.mask(), info.fin(), info.rsv1(), info.rsv2(), info.rsv3(), info.maskKey(), info.size()), frame.payload()));
+					}
 					case CLOSING -> {
-						if (payload.length > 0) {
-							var code = (payload[0] << 8) | payload[1];
-							session.txThread.closeReason = new StatusCode(code, new String(payload, 2, payload.length - 2, StandardCharsets.UTF_8));
+						if (info.size() > 0) {
+							var payload = frame.payload();
+							var code = payload.getShort();
+							session.txThread.closeReason = new StatusCode(code, StandardCharsets.UTF_8.decode(payload).toString());
 						} else {
 							session.txThread.closeReason = WSCloseStatus.CLOSED.statusCode;
 						}
 
 						session.txThread.remoteClosed = true;
-						session.send(Frame.simple(Opcode.CLOSING, false, payload));
+						session.send(Frame.simple(Opcode.CLOSING, null, frame.payload()));
 						session.rxThread = null;
 						LockSupport.unpark(session.txThread);
 					}

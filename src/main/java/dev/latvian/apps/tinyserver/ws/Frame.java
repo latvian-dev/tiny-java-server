@@ -2,125 +2,61 @@ package dev.latvian.apps.tinyserver.ws;
 
 import org.jetbrains.annotations.Nullable;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.math.BigInteger;
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
-import java.util.Random;
 
-public record Frame(
-	Opcode opcode,
-	boolean mask,
-	boolean fin,
-	boolean rsv1,
-	boolean rsv2,
-	boolean rsv3,
-	byte[] payload
-) {
-	public static Frame simple(Opcode opcode, boolean mask, byte[] payload) {
-		return new Frame(opcode, mask, true, false, false, false, payload);
+public record Frame(FrameInfo info, ByteBuffer payload) {
+	static final ByteBuffer EMPTY_PAYLOAD = ByteBuffer.allocate(0);
+
+	public static Frame simple(Opcode opcode, @Nullable Integer mask, ByteBuffer payload) {
+		return new Frame(new FrameInfo(opcode, mask != null, true, false, false, false, mask != null ? mask : 0, payload.limit()), payload);
+	}
+
+	public static Frame simple(Opcode opcode, @Nullable Integer mask, byte[] payload) {
+		return simple(opcode, mask, ByteBuffer.wrap(payload));
 	}
 
 	public static Frame text(String text) {
-		return simple(Opcode.TEXT, false, text.getBytes(StandardCharsets.UTF_8));
+		return simple(Opcode.TEXT, null, text.getBytes(StandardCharsets.UTF_8));
 	}
 
-	public static Frame binary(byte[] bytes) {
-		return simple(Opcode.BINARY, false, bytes);
+	public static Frame binary(byte[] buffer) {
+		return simple(Opcode.BINARY, null, buffer);
 	}
 
-	public static Frame read(InputStream stream) throws IOException {
-		int b1 = stream.read();
-
-		if (b1 == -1) {
-			return null;
-		}
-
-		var opcode = Opcode.get(b1 & 0x0F);
-		boolean fin = (b1 & 0x80) != 0;
-		boolean rsv1 = (b1 & 0x40) != 0;
-		boolean rsv2 = (b1 & 0x20) != 0;
-		boolean rsv3 = (b1 & 0x10) != 0;
-
-		int b2 = stream.read();
-		boolean mask = (b2 & -128) != 0;
-		int payloadlength = (byte) (b2 & ~(byte) 128);
-
-		if (payloadlength == 126) {
-			var sizebytes = new byte[3];
-			sizebytes[1] = (byte) stream.read();
-			sizebytes[2] = (byte) stream.read();
-			payloadlength = new BigInteger(sizebytes).intValue();
-		} else if (payloadlength == 127) {
-			byte[] bytes = new byte[8];
-			stream.read(bytes);
-			payloadlength = (int) new BigInteger(bytes).longValue();
-		}
-
-		var payload = new byte[payloadlength];
-
-		if (mask) {
-			var maskKey = new byte[4];
-			stream.read(maskKey);
-
-			for (int i = 0; i < payloadlength; i++) {
-				payload[i] = (byte) (stream.read() ^ maskKey[i % 4]);
-			}
-		} else {
-			stream.read(payload);
-		}
-
-		return new Frame(opcode, mask, fin, rsv1, rsv2, rsv3, payload);
-	}
-
-	public void write(Random random, OutputStream stream) throws IOException {
-		stream.write((fin ? 0x80 : 0)
-			| (rsv1 ? 0x40 : 0)
-			| (rsv2 ? 0x20 : 0)
-			| (rsv3 ? 0x10 : 0)
-			| opcode.opcode
-		);
-
-		if (payload.length < 126) {
-			stream.write((mask ? 0x80 : 0) | payload.length);
-		} else if (payload.length < 65536) {
-			stream.write((mask ? 0x80 : 0) | 126);
-			stream.write(payload.length >> 8);
-			stream.write(payload.length);
-		} else {
-			stream.write((mask ? 0x80 : 0) | 127);
-			stream.write(0);
-			stream.write(0);
-			stream.write(0);
-			stream.write(0);
-			stream.write(payload.length >> 24);
-			stream.write(payload.length >> 16);
-			stream.write(payload.length >> 8);
-			stream.write(payload.length);
-		}
-
-		if (mask) {
-			var maskKey = new byte[4];
-			random.nextBytes(maskKey);
-			stream.write(maskKey);
-
-			for (int i = 0; i < payload.length; i++) {
-				stream.write(payload[i] ^ maskKey[i % 4]);
-			}
-		} else {
-			stream.write(payload);
-		}
+	public int bytes() {
+		return info.bytes() + info().size();
 	}
 
 	public Frame appendTo(@Nullable Frame previous) {
 		if (previous != null) {
-			byte[] newPayload = new byte[previous.payload.length + payload.length];
-			System.arraycopy(previous.payload, 0, newPayload, 0, previous.payload.length);
-			System.arraycopy(payload, 0, newPayload, previous.payload.length, payload.length);
-			return new Frame(previous.opcode, previous.mask, fin, previous.rsv1, previous.rsv2, previous.rsv3, newPayload);
+			var newLen = previous.info.size() + info.size();
+			ByteBuffer newPayload;
+
+			if (previous.payload == EMPTY_PAYLOAD) {
+				newPayload = payload;
+			} else if (payload == EMPTY_PAYLOAD) {
+				newPayload = previous.payload;
+			} else {
+				newPayload = ByteBuffer.allocate(newLen);
+				newPayload.put(previous.payload);
+				newPayload.put(payload);
+			}
+
+			return new Frame(new FrameInfo(previous.info.opcode(), previous.info.mask(), info.fin(), previous.info.rsv1(), previous.info.rsv2(), previous.info.rsv3(), previous.info().maskKey(), newLen), newPayload);
 		}
 
 		return this;
+	}
+
+	public void applyMask() {
+		if (info.mask() && !info.maskZero() && info.size() > 0) {
+			var payloadBytes = new byte[info.size()];
+			payload.get(payloadBytes);
+			info.applyMask(payloadBytes);
+			payload.flip();
+			payload.put(payloadBytes);
+			payload.flip();
+		}
 	}
 }

@@ -2,7 +2,6 @@ package dev.latvian.apps.tinyserver.content;
 
 import java.io.IOException;
 import java.io.OutputStream;
-import java.net.http.HttpRequest;
 
 public record ByteContent(byte[] bytes, String type) implements ResponseContent {
 	@Override
@@ -16,12 +15,7 @@ public record ByteContent(byte[] bytes, String type) implements ResponseContent 
 	}
 
 	@Override
-	public byte[] toBytes() throws IOException {
+	public byte[] toBytes() {
 		return bytes;
-	}
-
-	@Override
-	public HttpRequest.BodyPublisher bodyPublisher() {
-		return HttpRequest.BodyPublishers.ofByteArray(bytes);
 	}
 }
