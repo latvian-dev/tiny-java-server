@@ -5,6 +5,7 @@ import org.jetbrains.annotations.Nullable;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 
 public enum HTTPStatus implements HTTPResponse {
 	// 1xx - Informational
@@ -64,6 +65,13 @@ public enum HTTPStatus implements HTTPResponse {
 	;
 
 	private static final HTTPStatus[] VALUES = values();
+	public static final List<HTTPStatus> ALL = List.of(VALUES);
+	public static final List<HTTPStatus> INFORMATIONAL = List.copyOf(ALL.stream().filter(HTTPStatus::informational).toList());
+	public static final List<HTTPStatus> SUCCESS = List.copyOf(ALL.stream().filter(HTTPStatus::success).toList());
+	public static final List<HTTPStatus> REDIRECT = List.copyOf(ALL.stream().filter(HTTPStatus::redirect).toList());
+	public static final List<HTTPStatus> CLIENT_ERROR = List.copyOf(ALL.stream().filter(HTTPStatus::clientError).toList());
+	public static final List<HTTPStatus> SERVER_ERROR = List.copyOf(ALL.stream().filter(HTTPStatus::serverError).toList());
+	public static final List<List<HTTPStatus>> LOOKUP = List.of(INFORMATIONAL, SUCCESS, REDIRECT, CLIENT_ERROR, SERVER_ERROR);
 
 	@Nullable
 	public static HTTPStatus fromCode(int code) {
@@ -71,8 +79,8 @@ public enum HTTPStatus implements HTTPResponse {
 			return null;
 		}
 
-		for (var status : VALUES) {
-			if (status.statusCode.code() == code) {
+		for (var status : LOOKUP.get(code / 100 - 1)) {
+			if (status.code == code) {
 				return status;
 			}
 		}
@@ -80,12 +88,16 @@ public enum HTTPStatus implements HTTPResponse {
 		return null;
 	}
 
+	private final int code;
 	private final StatusCode statusCode;
 	private final ByteBuffer responseBuffer;
+	private final String string;
 
 	HTTPStatus(int code, String message) {
+		this.code = code;
 		this.statusCode = new StatusCode(code, message);
 		this.responseBuffer = ByteBuffer.wrap(("HTTP/1.1 " + statusCode.code() + " " + statusCode.message() + "\r\n").getBytes(StandardCharsets.UTF_8));
+		this.string = Integer.toString(code);
 	}
 
 	@Override
@@ -127,5 +139,14 @@ public enum HTTPStatus implements HTTPResponse {
 
 	public boolean error() {
 		return statusCode.code() >= 400;
+	}
+
+	public int code() {
+		return code;
+	}
+
+	@Override
+	public String toString() {
+		return string;
 	}
 }
