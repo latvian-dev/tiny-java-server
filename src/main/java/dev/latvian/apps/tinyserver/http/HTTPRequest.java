@@ -6,6 +6,7 @@ import dev.latvian.apps.tinyserver.HTTPServer;
 import dev.latvian.apps.tinyserver.error.InvalidPathException;
 import dev.latvian.apps.tinyserver.http.response.HTTPPayload;
 import dev.latvian.apps.tinyserver.http.response.HTTPResponse;
+import dev.latvian.apps.tinyserver.http.response.error.client.LengthRequiredError;
 import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.Nullable;
 
@@ -147,7 +148,7 @@ public class HTTPRequest {
 			var h = header("Content-Length");
 
 			if (h.isEmpty()) {
-				throw new IOException("Content-Length header not found, chunked encoding not supported");
+				throw new LengthRequiredError();
 			}
 
 			int len = Integer.parseInt(h);

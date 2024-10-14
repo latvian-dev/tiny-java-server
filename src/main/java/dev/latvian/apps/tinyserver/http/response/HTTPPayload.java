@@ -208,7 +208,7 @@ public class HTTPPayload {
 		}
 	}
 
-	public void write(HTTPConnection connection, boolean writeBody) throws IOException {
+	public void write(HTTPConnection<?> connection, boolean writeBody) throws IOException {
 		connection.write(status.responseBuffer().duplicate());
 
 		int size = 2;

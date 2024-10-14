@@ -2,7 +2,7 @@ package dev.latvian.apps.tinyserver.test;
 
 import dev.latvian.apps.tinyserver.HTTPConnection;
 import dev.latvian.apps.tinyserver.http.response.HTTPResponse;
-import dev.latvian.apps.tinyserver.http.response.error.UnauthorizedError;
+import dev.latvian.apps.tinyserver.http.response.error.client.UnauthorizedError;
 import dev.latvian.apps.tinyserver.ws.WSHandler;
 
 import java.io.IOException;
@@ -99,7 +99,7 @@ public class TinyServerTest {
 	}
 
 	private static HTTPResponse error(TestRequest req) {
-		throw new UnauthorizedError(null);
+		throw new UnauthorizedError();
 	}
 
 	private static HTTPResponse form(TestRequest req) {
