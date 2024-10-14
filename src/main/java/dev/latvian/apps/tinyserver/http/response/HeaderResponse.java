@@ -1,6 +1,6 @@
 package dev.latvian.apps.tinyserver.http.response;
 
-public record HTTPResponseWithHeader(HTTPResponse original, String header, String value) implements HTTPResponse {
+public record HeaderResponse(HTTPResponse original, String header, String value) implements HTTPResponse {
 	@Override
 	public HTTPStatus status() {
 		return original.status();

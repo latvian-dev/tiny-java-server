@@ -1,9 +1,10 @@
 package dev.latvian.apps.tinyserver.content;
 
+import dev.latvian.apps.tinyserver.HTTPConnection;
+
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
-import java.nio.channels.WritableByteChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
@@ -41,13 +42,13 @@ public record FileContent(Path file, String overrideType) implements ResponseCon
 	}
 
 	@Override
-	public void transferTo(WritableByteChannel channel) throws IOException {
+	public void transferTo(HTTPConnection<?> connection) throws IOException {
 		try (var fileChannel = Files.newByteChannel(file)) {
 			var buf = ByteBuffer.allocate(8192);
 
 			while (fileChannel.read(buf) != -1) {
 				buf.flip();
-				channel.write(buf);
+				connection.write(buf);
 				buf.clear();
 			}
 		}

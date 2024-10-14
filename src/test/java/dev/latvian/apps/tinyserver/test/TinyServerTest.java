@@ -59,8 +59,9 @@ public class TinyServerTest {
 
 			if (in.startsWith("/")) {
 				simulateRequest(in);
-			} else if (in.equals("s")) {
-				System.out.println("Sessions: " + server.connections().size() + " " + server.connections());
+			} else if (in.equals("c")) {
+				var uc = server.connections();
+				System.out.println("Upgraded Connections: (" + uc.size() + ") " + uc);
 			} else if (in.startsWith("+")) {
 				wsHandler.broadcastText(in.substring(1));
 			}

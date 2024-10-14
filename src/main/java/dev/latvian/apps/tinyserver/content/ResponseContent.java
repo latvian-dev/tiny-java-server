@@ -1,11 +1,12 @@
 package dev.latvian.apps.tinyserver.content;
 
+import dev.latvian.apps.tinyserver.HTTPConnection;
+
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.http.HttpRequest;
 import java.nio.ByteBuffer;
-import java.nio.channels.WritableByteChannel;
 
 public interface ResponseContent {
 	default long length() {
@@ -24,8 +25,8 @@ public interface ResponseContent {
 		return out.toByteArray();
 	}
 
-	default void transferTo(WritableByteChannel channel) throws IOException {
-		channel.write(ByteBuffer.wrap(toBytes()));
+	default void transferTo(HTTPConnection<?> connection) throws IOException {
+		connection.write(ByteBuffer.wrap(toBytes()));
 	}
 
 	default HttpRequest.BodyPublisher bodyPublisher() throws IOException {

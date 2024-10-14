@@ -39,11 +39,11 @@ class TXThread extends Thread {
 
 					frame.info().put(infoBuf);
 					infoBuf.flip();
-					session.connection.socketChannel.write(infoBuf);
+					session.connection.write(infoBuf);
 
 					if (frame.info().size() > 0L) {
 						frame.applyMask();
-						session.connection.socketChannel.write(frame.payload());
+						session.connection.write(ByteBuffer.wrap(frame.payload()));
 					}
 				} catch (IOException e) {
 					session.onError(e);
@@ -58,9 +58,8 @@ class TXThread extends Thread {
 			}
 		}
 
-		session.sessionMap.remove(session.id);
+		session.handler.sessions().remove(session.id);
 		session.rxThread = null;
 		session.onClose(closeReason, remoteClosed);
-		session.connection.close();
 	}
 }

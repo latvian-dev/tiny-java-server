@@ -19,36 +19,14 @@ public record WSEndpointHandler<REQ extends HTTPRequest, WSS extends WSSession<R
 		var uuidBase64 = req.header("sec-websocket-key").getBytes(StandardCharsets.UTF_8);
 		session.id = UUID.nameUUIDFromBytes(Base64.getDecoder().decode(uuidBase64));
 
-		/*
-		System.out.println("Request: " + String.join("/", req.path()));
-		System.out.println("- Query:");
-
-		for (var e : req.query().entrySet()) {
-			System.out.println("  " + e.getKey() + ": " + e.getValue());
-		}
-
-		System.out.println("- Variables:");
-
-		for (var e : req.variables().entrySet()) {
-			System.out.println("  " + e.getKey() + ": " + e.getValue());
-		}
-
-		System.out.println("- Headers:");
-
-		for (var e : req.headers().entrySet()) {
-			System.out.println("  " + e.getKey() + ": " + e.getValue());
-		}
-
-		System.out.println("UUID: " + session.id);
-		*/
-
 		var digest = MessageDigest.getInstance("SHA-1");
 		digest.update(uuidBase64);
 		digest.update(WEB_SOCKET_GUID);
 		byte[] sha1 = digest.digest();
 
-		session.sessionMap = (Map) sessions;
+		session.handler = this;
 		sessions.put(session.id, session);
-		return new WSResponse(session, sha1);
+
+		return HTTPResponse.upgrade(session).header("Sec-WebSocket-Accept", Base64.getEncoder().encodeToString(sha1));
 	}
 }

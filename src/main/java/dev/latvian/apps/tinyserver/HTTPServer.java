@@ -6,6 +6,7 @@ import dev.latvian.apps.tinyserver.http.HTTPHandler;
 import dev.latvian.apps.tinyserver.http.HTTPMethod;
 import dev.latvian.apps.tinyserver.http.HTTPPathHandler;
 import dev.latvian.apps.tinyserver.http.HTTPRequest;
+import dev.latvian.apps.tinyserver.http.HTTPUpgrade;
 import dev.latvian.apps.tinyserver.http.Header;
 import dev.latvian.apps.tinyserver.http.response.HTTPPayload;
 import dev.latvian.apps.tinyserver.http.response.HTTPResponse;
@@ -27,34 +28,25 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegistry<REQ> {
-	static <T extends AutoCloseable> T close(T t) {
-		if (t != null) {
-			try {
-				t.close();
-				return null;
-			} catch (Exception ignore) {
-			}
-		}
-
-		return t;
-	}
+	private static final Object DUMMY = new Object();
 
 	private final Supplier<REQ> requestFactory;
 	private final Map<HTTPMethod, HandlerList<REQ>> handlers;
 	private final Map<HTTPMethod, HTTPPathHandler<REQ>> rootHandlers;
-	protected final ConcurrentLinkedDeque<HTTPConnection> connections;
+	private final IdentityHashMap<HTTPConnection<REQ>, Object> connections;
+	private final Set<HTTPConnection<REQ>> publicConnections;
 	private String serverName;
 	//private Selector selector;
 	private ServerSocketChannel serverSocketChannel;
@@ -64,13 +56,15 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 	private boolean daemon = false;
 	private int bufferSize = 0;
 	private int maxKeepAliveConnections = 100;
-	private int keepAliveTimeout = 15;
+	long now;
+	int keepAliveTimeout = 15;
 
 	public HTTPServer(Supplier<REQ> requestFactory) {
 		this.requestFactory = requestFactory;
 		this.handlers = new EnumMap<>(HTTPMethod.class);
 		this.rootHandlers = new EnumMap<>(HTTPMethod.class);
-		this.connections = new ConcurrentLinkedDeque<>();
+		this.connections = new IdentityHashMap<>();
+		this.publicConnections = Collections.unmodifiableSet(connections.keySet());
 		this.serverName = "dev.latvian.apps:tiny-java-server";
 	}
 
@@ -183,49 +177,66 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 	}
 
 	@Override
-	public void run() {
+	public final void run() {
+		serverStarted();
+
 		try (var ssc = serverSocketChannel) {
 			while (isRunning()) {
-				var socketChannel = ssc.accept();
-				long now = System.currentTimeMillis();
-				long timeout = keepAliveTimeout * 1000L;
-
-				if (socketChannel != null) {
-					socketChannel.socket().setSoTimeout((keepAliveTimeout + 1) * 1000);
-					socketChannel.finishConnect();
-					var connection = createConnection(socketChannel, Instant.now());
-					connection.lastActivity = now;
-					connections.add(connection);
-					queueSession(connection);
-				}
-
-				for (var c : connections) {
-					if (now - c.lastActivity > timeout) {
-						c.close();
-					}
-				}
-
-				connections.removeIf(HTTPConnection::isClosed);
-				Thread.sleep(1L);
+				now = System.currentTimeMillis();
+				acceptClient(ssc);
+				connections.keySet().removeIf(HTTPConnection::handleClosure);
 			}
-		} catch (Exception ignore) {
+
+			serverStopped(null);
+		} catch (Exception ex) {
+			serverStopped(ex);
 		}
 	}
 
-	protected void handleClient(HTTPConnection connection) {
+	private void acceptClient(ServerSocketChannel ssc) {
+		SocketChannel socketChannel = null;
+
+		try {
+			socketChannel = ssc.accept();
+
+			if (socketChannel != null) {
+				socketChannel.socket().setSoTimeout((keepAliveTimeout + 1) * 1000);
+				var connection = createConnection(socketChannel, Instant.now());
+				connection.lastActivity = now;
+				connections.put(connection, DUMMY);
+				queueSession(connection);
+			}
+		} catch (Exception ex) {
+			if (socketChannel != null) {
+				try {
+					socketChannel.close();
+				} catch (IOException ignore) {
+				}
+			}
+		}
+	}
+
+	protected void serverStarted() {
+	}
+
+	protected void serverStopped(@Nullable Throwable ex) {
+		if (ex != null) {
+			ex.printStackTrace();
+		}
+	}
+
+	boolean handleClient(HTTPConnection<REQ> connection) {
 		connection.lastActivity = System.currentTimeMillis();
 		connection.beforeHandshake();
 
-		WSSession<REQ> upgradedToWebSocket = null;
 		boolean keepAlive = false;
 
 		try {
 			var firstLineStr = connection.readCRLF();
 
 			if (!firstLineStr.toLowerCase().endsWith(" http/1.1")) {
-				connection.close();
-				connections.remove(connection);
-				return;
+				connection.status = HTTPConnection.INVALID_REQUEST;
+				return false;
 			}
 
 			var startTime = Instant.now();
@@ -344,7 +355,7 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 					builder.setStatus(HTTPStatus.NO_CONTENT);
 					builder.addHeader("Allow", allowed.stream().map(HTTPMethod::name).collect(Collectors.joining(",")));
 					builder.process(req, keepAliveTimeout, keepAlive ? maxKeepAliveConnections : 0);
-					builder.write(connection.socketChannel, writeBody);
+					builder.write(connection, writeBody);
 				} else if (method == HTTPMethod.TRACE) {
 					// no-op
 				} else if (method == HTTPMethod.CONNECT) {
@@ -400,13 +411,12 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 					}
 
 					builder.process(req, keepAliveTimeout, keepAlive ? maxKeepAliveConnections : 0);
-					builder.write(connection.socketChannel, writeBody);
+					builder.write(connection, writeBody);
 
-					upgradedToWebSocket = (WSSession) builder.getWSSession();
+					connection.upgrade = (HTTPUpgrade) builder.getUpgrade();
 
-					if (upgradedToWebSocket != null) {
-						upgradedToWebSocket.start(connection);
-						upgradedToWebSocket.onOpen(req);
+					if (connection.upgrade != null) {
+						connection.upgrade.start(req);
 					}
 				}
 			}
@@ -414,15 +424,7 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 			connection.error(ex);
 		}
 
-		if (upgradedToWebSocket == null) {
-			if (keepAlive) {
-				handleClient(connection);
-			} else {
-				connection.close();
-			}
-		} else {
-			connections.remove(connection);
-		}
+		return keepAlive && connection.upgrade == null;
 	}
 
 	public HTTPPayload createBuilder(REQ req, @Nullable HTTPHandler<REQ> handler) {
@@ -447,21 +449,21 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 		return payload;
 	}
 
-	protected HTTPConnection createConnection(SocketChannel socketChannel, Instant createdTime) throws IOException {
-		return new HTTPConnection(this, socketChannel, createdTime);
+	protected HTTPConnection<REQ> createConnection(SocketChannel socketChannel, Instant createdTime) throws IOException {
+		return new HTTPConnection<>(this, socketChannel, createdTime);
 	}
 
 	protected void startThread() {
-		var thread = new Thread(this);
+		var thread = new Thread(this, serverName == null || serverName.isEmpty() ? ("HTTPServer-" + System.currentTimeMillis()) : serverName);
 		thread.setDaemon(daemon);
 		thread.start();
 	}
 
-	protected void queueSession(HTTPConnection session) {
+	protected void queueSession(HTTPConnection<REQ> session) {
 		Thread.startVirtualThread(session);
 	}
 
-	public Collection<HTTPConnection> connections() {
-		return Collections.unmodifiableCollection(connections);
+	public Set<HTTPConnection<REQ>> connections() {
+		return publicConnections;
 	}
 }

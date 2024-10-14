@@ -23,7 +23,7 @@ import java.util.Map;
 import java.util.Set;
 
 public class HTTPRequest {
-	private HTTPConnection connection;
+	private HTTPConnection<?> connection;
 	private Instant startTime;
 	private HTTPMethod method;
 	private String path = "";
@@ -38,7 +38,7 @@ public class HTTPRequest {
 	private ByteBuffer bodyBuffer = null;
 
 	@ApiStatus.Internal
-	public final void preInit(HTTPConnection session, Instant startTime, HTTPMethod method) {
+	public final void preInit(HTTPConnection<?> session, Instant startTime, HTTPMethod method) {
 		this.connection = session;
 		this.startTime = startTime;
 		this.method = method;
@@ -70,12 +70,12 @@ public class HTTPRequest {
 	public void afterInit() {
 	}
 
-	public HTTPConnection connection() {
+	public HTTPConnection<?> connection() {
 		return connection;
 	}
 
 	public HTTPServer<?> server() {
-		return connection.server;
+		return connection.server();
 	}
 
 	public HTTPMethod method() {
@@ -152,17 +152,7 @@ public class HTTPRequest {
 
 			int len = Integer.parseInt(h);
 			bodyBuffer = ByteBuffer.allocate(len);
-
-			while (len > 0) {
-				int read = connection.socketChannel.read(bodyBuffer);
-
-				if (read == -1) {
-					throw new IOException("End of stream reached");
-				}
-
-				len -= read;
-			}
-
+			connection.read(bodyBuffer);
 			bodyBuffer.flip();
 		}
 

@@ -3,12 +3,12 @@ package dev.latvian.apps.tinyserver.test;
 import dev.latvian.apps.tinyserver.StatusCode;
 import dev.latvian.apps.tinyserver.ws.WSSession;
 
-import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 
 public class TestWSSession extends WSSession<TestRequest> {
 	@Override
 	public void onOpen(TestRequest req) {
+		System.out.println("WS " + id() + " Connected from " + req.connection());
 		sendText("Hello from " + id() + "! " + req.variables() + ", " + req.headers());
 	}
 
@@ -23,7 +23,7 @@ public class TestWSSession extends WSSession<TestRequest> {
 	}
 
 	@Override
-	public void onPing(ByteBuffer payload) {
-		System.out.println("WS Ping: " + StandardCharsets.UTF_8.decode(payload.duplicate()));
+	public void onPing(byte[] payload) {
+		System.out.println("WS Ping: " + new String(payload, StandardCharsets.UTF_8));
 	}
 }

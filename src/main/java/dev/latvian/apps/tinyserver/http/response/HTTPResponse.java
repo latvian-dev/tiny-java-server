@@ -4,6 +4,7 @@ import dev.latvian.apps.tinyserver.content.ByteContent;
 import dev.latvian.apps.tinyserver.content.FileContent;
 import dev.latvian.apps.tinyserver.content.MimeType;
 import dev.latvian.apps.tinyserver.content.ResponseContent;
+import dev.latvian.apps.tinyserver.http.HTTPUpgrade;
 import dev.latvian.apps.tinyserver.http.response.encoding.DeflateResponseContentEncoding;
 import dev.latvian.apps.tinyserver.http.response.encoding.GZIPResponseContentEncoding;
 import dev.latvian.apps.tinyserver.http.response.encoding.ResponseContentEncoding;
@@ -46,28 +47,32 @@ public interface HTTPResponse {
 		return new RedirectResponse(HTTPStatus.PERMANENT_REDIRECT, location);
 	}
 
+	static HTTPResponse upgrade(HTTPUpgrade<?> upgrade) {
+		return new UpgradeResponse(upgrade);
+	}
+
 	HTTPStatus status();
 
 	void build(HTTPPayload payload);
 
 	default HTTPResponse header(String header, Object value) {
-		return new HTTPResponseWithHeader(this, header, String.valueOf(value));
+		return new HeaderResponse(this, header, String.valueOf(value));
 	}
 
 	default HTTPResponse cookie(String key, String value) {
-		return new HTTPResponseWithCookie(this, key, value);
+		return new CookieResponse(this, key, value);
 	}
 
-	default HTTPResponse cookie(String key, String value, UnaryOperator<HTTPResponseWithCookie.Builder> properties) {
-		return new HTTPResponseWithCookie(this, key, value, properties.apply(new HTTPResponseWithCookie.Builder()));
+	default HTTPResponse cookie(String key, String value, UnaryOperator<CookieResponse.Builder> properties) {
+		return new CookieResponse(this, key, value, properties.apply(new CookieResponse.Builder()));
 	}
 
 	default HTTPResponse removeCookie(String key) {
-		return new HTTPResponseWithCookie(this, key, "", new HTTPResponseWithCookie.Builder().remove());
+		return new CookieResponse(this, key, "", new CookieResponse.Builder().remove());
 	}
 
 	default HTTPResponse cache(boolean isPublic, Duration duration) {
-		return new HTTPResponseWithCacheControl(this, isPublic, duration);
+		return new CacheControlResponse(this, isPublic, duration);
 	}
 
 	default HTTPResponse noCache() {
@@ -119,7 +124,7 @@ public interface HTTPResponse {
 	}
 
 	default HTTPResponse encoding(ResponseContentEncoding encoding) {
-		return new HTTPResponseWithEncoding(this, encoding);
+		return new EncodingResponse(this, encoding);
 	}
 
 	default HTTPResponse gzip() {

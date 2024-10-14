@@ -3,21 +3,21 @@ package dev.latvian.apps.tinyserver.ws;
 import dev.latvian.apps.tinyserver.HTTPConnection;
 import dev.latvian.apps.tinyserver.StatusCode;
 import dev.latvian.apps.tinyserver.http.HTTPRequest;
+import dev.latvian.apps.tinyserver.http.HTTPUpgrade;
 
-import java.nio.ByteBuffer;
-import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.locks.LockSupport;
 
-public class WSSession<REQ extends HTTPRequest> {
-	HTTPConnection connection;
-	Map<UUID, WSSession<?>> sessionMap;
+public class WSSession<REQ extends HTTPRequest> implements HTTPUpgrade<REQ> {
+	HTTPConnection<?> connection;
+	WSEndpointHandler<REQ, ?> handler;
 	UUID id;
 	TXThread txThread;
 	RXThread rxThread;
 
-	public final void start(HTTPConnection connection) {
-		this.connection = connection;
+	@Override
+	public final void start(REQ req) {
+		this.connection = req.connection();
 
 		this.txThread = new TXThread(this);
 		this.txThread.setDaemon(true);
@@ -27,6 +27,18 @@ public class WSSession<REQ extends HTTPRequest> {
 
 		this.txThread.start();
 		this.rxThread.start();
+
+		onOpen(req);
+	}
+
+	@Override
+	public String protocol() {
+		return "websocket";
+	}
+
+	@Override
+	public final boolean isClosed() {
+		return txThread != null && txThread.closeReason != null;
 	}
 
 	public final UUID id() {
@@ -58,10 +70,10 @@ public class WSSession<REQ extends HTTPRequest> {
 	public void onTextMessage(String message) {
 	}
 
-	public void onBinaryMessage(ByteBuffer message) {
+	public void onBinaryMessage(byte[] message) {
 	}
 
-	public void onPing(ByteBuffer payload) {
+	public void onPing(byte[] payload) {
 	}
 
 	public final void close(WSCloseStatus status, String reason) {

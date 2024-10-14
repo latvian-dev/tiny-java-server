@@ -12,7 +12,18 @@ public class TestServer extends HTTPServer<TestRequest> {
 	}
 
 	@Override
-	protected HTTPConnection createConnection(SocketChannel socketChannel, Instant createdTime) {
+	protected void serverStarted() {
+		System.out.println("Server started");
+	}
+
+	@Override
+	protected void serverStopped(Throwable ex) {
+		System.out.println("Server stopped");
+		super.serverStopped(ex);
+	}
+
+	@Override
+	protected HTTPConnection<TestRequest> createConnection(SocketChannel socketChannel, Instant createdTime) {
 		return new TestConnection(this, socketChannel, createdTime);
 	}
 }

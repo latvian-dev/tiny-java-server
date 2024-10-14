@@ -1,16 +1,15 @@
 package dev.latvian.apps.tinyserver.http.response;
 
+import dev.latvian.apps.tinyserver.HTTPConnection;
 import dev.latvian.apps.tinyserver.content.ResponseContent;
 import dev.latvian.apps.tinyserver.http.HTTPRequest;
+import dev.latvian.apps.tinyserver.http.HTTPUpgrade;
 import dev.latvian.apps.tinyserver.http.Header;
 import dev.latvian.apps.tinyserver.http.response.encoding.ResponseContentEncoding;
-import dev.latvian.apps.tinyserver.ws.WSResponse;
-import dev.latvian.apps.tinyserver.ws.WSSession;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.channels.WritableByteChannel;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.ZoneId;
@@ -33,7 +32,7 @@ public class HTTPPayload {
 	private String cacheControl = "";
 	private Map<String, String> cookies;
 	private ResponseContent body = null;
-	private WSSession<?> wsSession = null;
+	private HTTPUpgrade<?> upgrade = null;
 	private List<ResponseContentEncoding> encodings;
 	private List<Header> responseHeaders = null;
 
@@ -52,7 +51,7 @@ public class HTTPPayload {
 		cacheControl = "";
 		cookies = null;
 		body = null;
-		wsSession = null;
+		upgrade = null;
 		encodings = null;
 	}
 
@@ -110,9 +109,13 @@ public class HTTPPayload {
 		return body;
 	}
 
+	public void setUpgrade(HTTPUpgrade<?> upgrade) {
+		this.upgrade = upgrade;
+	}
+
 	@Nullable
-	public WSSession<?> getWSSession() {
-		return wsSession;
+	public HTTPUpgrade<?> getUpgrade() {
+		return upgrade;
 	}
 
 	public void addEncoding(ResponseContentEncoding encoding) {
@@ -125,12 +128,6 @@ public class HTTPPayload {
 
 	public void setResponse(HTTPResponse response) {
 		response.build(this);
-
-		if (response instanceof WSResponse res) {
-			wsSession = res.session();
-		} else {
-			wsSession = null;
-		}
 	}
 
 	public void process(HTTPRequest req, int keepAliveTimeout, int maxKeepAliveConnections) throws IOException {
@@ -200,7 +197,10 @@ public class HTTPPayload {
 			}
 		}
 
-		if (maxKeepAliveConnections > 0) {
+		if (upgrade != null && status == HTTPStatus.SWITCHING_PROTOCOLS) {
+			responseHeaders.add(new Header("Connection", "upgrade"));
+			responseHeaders.add(new Header("Upgrade", upgrade.protocol()));
+		} else if (maxKeepAliveConnections > 0) {
 			responseHeaders.add(new Header("Connection", "keep-alive"));
 			responseHeaders.add(new Header("Keep-Alive", "timeout=" + keepAliveTimeout + ", max=" + maxKeepAliveConnections));
 		} else {
@@ -208,8 +208,8 @@ public class HTTPPayload {
 		}
 	}
 
-	public void write(WritableByteChannel channel, boolean writeBody) throws IOException {
-		channel.write(status.responseBuffer().duplicate());
+	public void write(HTTPConnection connection, boolean writeBody) throws IOException {
+		connection.write(status.responseBuffer().duplicate());
 
 		int size = 2;
 
@@ -229,10 +229,10 @@ public class HTTPPayload {
 		buf.put(CRLF);
 		buf.flip();
 
-		channel.write(buf);
+		connection.write(buf);
 
 		if (body != null && writeBody) {
-			body.transferTo(channel);
+			body.transferTo(connection);
 		}
 	}
 }

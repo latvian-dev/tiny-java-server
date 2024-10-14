@@ -2,7 +2,7 @@ package dev.latvian.apps.tinyserver.http.response;
 
 import dev.latvian.apps.tinyserver.http.response.encoding.ResponseContentEncoding;
 
-public record HTTPResponseWithEncoding(HTTPResponse original, ResponseContentEncoding encoding) implements HTTPResponse {
+public record EncodingResponse(HTTPResponse original, ResponseContentEncoding encoding) implements HTTPResponse {
 	@Override
 	public HTTPStatus status() {
 		return original.status();

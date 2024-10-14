@@ -25,9 +25,8 @@ class RXThread extends Thread {
 				if (info.size() == 0) {
 					frame = new Frame(info, Frame.EMPTY_PAYLOAD);
 				} else {
-					var payload = ByteBuffer.allocate(info.size());
-					session.connection.socketChannel.read(payload);
-					payload.flip();
+					var payload = new byte[info.size()];
+					session.connection.readBytes(payload);
 					frame = new Frame(info, payload);
 					frame.applyMask();
 				}
@@ -38,7 +37,7 @@ class RXThread extends Thread {
 
 						if (info.fin()) {
 							switch (lastFrame.info().opcode()) {
-								case TEXT -> session.onTextMessage(StandardCharsets.UTF_8.decode(lastFrame.payload()).toString());
+								case TEXT -> session.onTextMessage(new String(lastFrame.payload(), StandardCharsets.UTF_8));
 								case BINARY -> session.onBinaryMessage(lastFrame.payload());
 							}
 
@@ -51,7 +50,7 @@ class RXThread extends Thread {
 					}
 					case CLOSING -> {
 						if (info.size() > 0) {
-							var payload = frame.payload();
+							var payload = ByteBuffer.wrap(frame.payload());
 							var code = payload.getShort();
 							session.txThread.closeReason = new StatusCode(code, StandardCharsets.UTF_8.decode(payload).toString());
 						} else {

@@ -1,6 +1,6 @@
 package dev.latvian.apps.tinyserver.http.response;
 
-public record HTTPResponseWithCookie(HTTPResponse original, String key, String value, Builder builder) implements HTTPResponse {
+public record CookieResponse(HTTPResponse original, String key, String value, Builder builder) implements HTTPResponse {
 	public static class Builder {
 		private static final Builder DEFAULT = new Builder();
 
@@ -66,7 +66,7 @@ public record HTTPResponseWithCookie(HTTPResponse original, String key, String v
 		}
 	}
 
-	public HTTPResponseWithCookie(HTTPResponse original, String key, String value) {
+	public CookieResponse(HTTPResponse original, String key, String value) {
 		this(original, key, value, Builder.DEFAULT);
 	}
 
