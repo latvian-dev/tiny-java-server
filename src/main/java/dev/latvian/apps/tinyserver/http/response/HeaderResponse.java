@@ -1,11 +1,6 @@
 package dev.latvian.apps.tinyserver.http.response;
 
-public record HeaderResponse(HTTPResponse original, String header, String value) implements HTTPResponse {
-	@Override
-	public HTTPStatus status() {
-		return original.status();
-	}
-
+public record HeaderResponse(HTTPResponse original, String header, String value) implements ChainedHTTPResponse {
 	@Override
 	public void build(HTTPPayload payload) {
 		payload.addHeader(header, value);

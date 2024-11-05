@@ -1,6 +1,8 @@
 package dev.latvian.apps.tinyserver.test;
 
 import dev.latvian.apps.tinyserver.HTTPConnection;
+import dev.latvian.apps.tinyserver.http.HTTPPathHandler;
+import dev.latvian.apps.tinyserver.http.file.FileResponseHandler;
 import dev.latvian.apps.tinyserver.http.response.HTTPResponse;
 import dev.latvian.apps.tinyserver.http.response.error.client.UnauthorizedError;
 import dev.latvian.apps.tinyserver.ws.WSHandler;
@@ -40,8 +42,10 @@ public class TinyServerTest {
 		server.post("/form-submit", TinyServerTest::formSubmit);
 
 		var testFilesDir = Path.of("src/test/resources");
-		server.files("/files", testFilesDir, Duration.ofMinutes(1L), true);
-		server.files("/files-no-index", testFilesDir, Duration.ofMinutes(1L), false);
+		server.dynamicFiles("/files/dynamic", testFilesDir, FileResponseHandler.publicCache(1L, true), true);
+		server.dynamicFiles("/files/dynamic-no-index", testFilesDir, FileResponseHandler.publicCache(1L, true), false);
+		server.staticFiles("/files/static", testFilesDir, FileResponseHandler.publicCache(1L, true), true);
+		server.staticFiles("/files/static-no-index", testFilesDir, FileResponseHandler.publicCache(1L, true), false);
 
 		wsHandler = server.ws("/console/{console-type}", TestWSSession::new);
 
@@ -69,7 +73,7 @@ public class TinyServerTest {
 	}
 
 	private static HTTPResponse homepage(TestRequest req) {
-		return HTTPResponse.ok().text("Homepage " + req.startTime() + "\n\n" + req.server().connections().stream().map(HTTPConnection::toString).collect(Collectors.joining("\n")));
+		return HTTPResponse.ok().text("Homepage " + req.startTime() + "\n\n" + req.server().handlers().sorted((a, b) -> a.path().toString().compareToIgnoreCase(b.path().toString())).map(HTTPPathHandler::toString).collect(Collectors.joining("\n")) + "\n\n" + req.server().connections().stream().map(HTTPConnection::toString).collect(Collectors.joining("\n")));
 	}
 
 	private static HTTPResponse test(TestRequest req) {

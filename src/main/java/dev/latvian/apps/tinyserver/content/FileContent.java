@@ -53,4 +53,9 @@ public record FileContent(Path file, String overrideType) implements ResponseCon
 			}
 		}
 	}
+
+	@Override
+	public boolean hasData() {
+		return Files.exists(file) && Files.isRegularFile(file) && Files.isReadable(file);
+	}
 }

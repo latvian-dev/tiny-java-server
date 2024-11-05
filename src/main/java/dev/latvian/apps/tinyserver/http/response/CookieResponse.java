@@ -1,6 +1,6 @@
 package dev.latvian.apps.tinyserver.http.response;
 
-public record CookieResponse(HTTPResponse original, String key, String value, Builder builder) implements HTTPResponse {
+public record CookieResponse(HTTPResponse original, String key, String value, Builder builder) implements ChainedHTTPResponse {
 	public static class Builder {
 		private static final Builder DEFAULT = new Builder();
 
@@ -68,11 +68,6 @@ public record CookieResponse(HTTPResponse original, String key, String value, Bu
 
 	public CookieResponse(HTTPResponse original, String key, String value) {
 		this(original, key, value, Builder.DEFAULT);
-	}
-
-	@Override
-	public HTTPStatus status() {
-		return original.status();
 	}
 
 	@Override

@@ -2,8 +2,10 @@ package dev.latvian.apps.tinyserver;
 
 import org.jetbrains.annotations.Nullable;
 
-public record CompiledPath(Part[] parts, int variables, boolean wildcard) {
-	public static final CompiledPath EMPTY = new CompiledPath(new Part[0], 0, false);
+import java.util.ArrayList;
+
+public record CompiledPath(Part[] parts, String string, int variables, boolean wildcard) {
+	public static final CompiledPath EMPTY = new CompiledPath(new Part[0], "", 0, false);
 
 	public record Part(String name, boolean variable) {
 		public boolean matches(String string) {
@@ -13,6 +15,8 @@ public record CompiledPath(Part[] parts, int variables, boolean wildcard) {
 
 	public static CompiledPath compile(String string) {
 		var ostring = string;
+
+		string = string.trim().replace('\\', '/');
 
 		while (string.startsWith("/")) {
 			string = string.substring(1);
@@ -27,30 +31,33 @@ public record CompiledPath(Part[] parts, int variables, boolean wildcard) {
 		}
 
 		var partsStr = string.split("/");
-		var parts = new Part[partsStr.length];
+		var parts = new ArrayList<Part>(partsStr.length);
+		var toString = new ArrayList<String>();
 		boolean wildcard = false;
 		int variables = 0;
 
-		for (int i = 0; i < partsStr.length; i++) {
-			var s = partsStr[i];
-
-			if (wildcard) {
+		for (var s : partsStr) {
+			if (s.isEmpty()) {
+				continue;
+			} else if (wildcard) {
 				throw new IllegalArgumentException("<wildcard> argument must be the last part of the path '" + ostring + "'");
 			}
 
 			if (s.startsWith("{") && s.endsWith("}")) {
-				parts[i] = new Part(s.substring(1, s.length() - 1), true);
+				parts.add(new Part(s.substring(1, s.length() - 1), true));
 				variables++;
 			} else if (s.startsWith("<") && s.endsWith(">")) {
-				parts[i] = new Part(s.substring(1, s.length() - 1), true);
+				parts.add(new Part(s.substring(1, s.length() - 1), true));
 				variables++;
 				wildcard = true;
 			} else {
-				parts[i] = new Part(s, false);
+				parts.add(new Part(s, false));
 			}
+
+			toString.add(s);
 		}
 
-		return new CompiledPath(parts, variables, wildcard);
+		return parts.isEmpty() ? EMPTY : new CompiledPath(parts.toArray(new Part[0]), String.join("/", toString), variables, wildcard);
 	}
 
 	@Nullable
@@ -89,5 +96,10 @@ public record CompiledPath(Part[] parts, int variables, boolean wildcard) {
 		}
 
 		return null;
+	}
+
+	@Override
+	public String toString() {
+		return string;
 	}
 }

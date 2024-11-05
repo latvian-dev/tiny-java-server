@@ -17,6 +17,10 @@ public interface ResponseContent {
 		return "";
 	}
 
+	default boolean hasData() {
+		return true;
+	}
+
 	void write(OutputStream out) throws IOException;
 
 	default byte[] toBytes() throws IOException {
@@ -30,6 +34,7 @@ public interface ResponseContent {
 	}
 
 	default HttpRequest.BodyPublisher bodyPublisher() throws IOException {
-		return HttpRequest.BodyPublishers.ofByteArray(toBytes());
+		var b = toBytes();
+		return b.length == 0 ? HttpRequest.BodyPublishers.noBody() : HttpRequest.BodyPublishers.ofByteArray(b);
 	}
 }

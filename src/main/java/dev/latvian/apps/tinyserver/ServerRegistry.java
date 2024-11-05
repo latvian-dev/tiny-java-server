@@ -3,14 +3,20 @@ package dev.latvian.apps.tinyserver;
 import dev.latvian.apps.tinyserver.http.HTTPHandler;
 import dev.latvian.apps.tinyserver.http.HTTPMethod;
 import dev.latvian.apps.tinyserver.http.HTTPRequest;
-import dev.latvian.apps.tinyserver.http.PathFileHandler;
+import dev.latvian.apps.tinyserver.http.file.DynamicFileHandler;
+import dev.latvian.apps.tinyserver.http.file.FileIndexHandler;
+import dev.latvian.apps.tinyserver.http.file.FileResponseHandler;
+import dev.latvian.apps.tinyserver.http.file.SingleFileHandler;
 import dev.latvian.apps.tinyserver.http.response.HTTPResponse;
+import dev.latvian.apps.tinyserver.ws.WSEndpointHandler;
 import dev.latvian.apps.tinyserver.ws.WSHandler;
 import dev.latvian.apps.tinyserver.ws.WSSession;
 import dev.latvian.apps.tinyserver.ws.WSSessionFactory;
 
+import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
-import java.time.Duration;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 
 public interface ServerRegistry<REQ extends HTTPRequest> {
@@ -55,8 +61,12 @@ public interface ServerRegistry<REQ extends HTTPRequest> {
 		get(path, req -> res);
 	}
 
-	default void files(String path, Path directory, Duration cacheDuration, boolean autoIndex) {
-		var handler = new PathFileHandler<REQ>(path, directory, cacheDuration, autoIndex);
+	default void singleFile(String path, Path file, FileResponseHandler responseHandler) throws IOException {
+		get(path, new SingleFileHandler<>(file, Files.probeContentType(file), responseHandler));
+	}
+
+	default void dynamicFiles(String path, Path directory, FileResponseHandler responseHandler, boolean autoIndex) {
+		var handler = new DynamicFileHandler<REQ>(directory, responseHandler, autoIndex);
 
 		if (autoIndex) {
 			get(path, handler);
@@ -65,7 +75,25 @@ public interface ServerRegistry<REQ extends HTTPRequest> {
 		get(path + "/<path>", handler);
 	}
 
-	<WSS extends WSSession<REQ>> WSHandler<REQ, WSS> ws(String path, WSSessionFactory<REQ, WSS> factory);
+	default void staticFiles(String path, Path directory, FileResponseHandler responseHandler, boolean autoIndex) throws IOException {
+		path = path.endsWith("/") ? path : (path + "/");
+
+		for (var file : Files.walk(directory).filter(Files::isReadable).toList()) {
+			var rpath = directory.relativize(file).toString();
+
+			if (Files.isRegularFile(file)) {
+				singleFile(path + rpath, file, responseHandler);
+			} else if (autoIndex && Files.isDirectory(file)) {
+				get(path + rpath, new FileIndexHandler<>(directory, file, responseHandler));
+			}
+		}
+	}
+
+	default <WSS extends WSSession<REQ>> WSHandler<REQ, WSS> ws(String path, WSSessionFactory<REQ, WSS> factory) {
+		var handler = new WSEndpointHandler<>(factory, new ConcurrentHashMap<>());
+		get(path, handler);
+		return handler;
+	}
 
 	default <WSS extends WSSession<REQ>> WSHandler<REQ, WSS> ws(String path) {
 		return ws(path, (WSSessionFactory) WSSessionFactory.DEFAULT);

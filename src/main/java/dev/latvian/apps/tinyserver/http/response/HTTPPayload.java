@@ -1,6 +1,7 @@
 package dev.latvian.apps.tinyserver.http.response;
 
 import dev.latvian.apps.tinyserver.HTTPConnection;
+import dev.latvian.apps.tinyserver.content.ByteContent;
 import dev.latvian.apps.tinyserver.content.ResponseContent;
 import dev.latvian.apps.tinyserver.http.HTTPRequest;
 import dev.latvian.apps.tinyserver.http.HTTPUpgrade;
@@ -31,7 +32,7 @@ public class HTTPPayload {
 	private final List<Header> headers = new ArrayList<>();
 	private String cacheControl = "";
 	private Map<String, String> cookies;
-	private ResponseContent body = null;
+	private ResponseContent body = ByteContent.EMPTY;
 	private HTTPUpgrade<?> upgrade = null;
 	private List<ResponseContentEncoding> encodings;
 	private List<Header> responseHeaders = null;
@@ -50,7 +51,7 @@ public class HTTPPayload {
 		headers.clear();
 		cacheControl = "";
 		cookies = null;
-		body = null;
+		body = ByteContent.EMPTY;
 		upgrade = null;
 		encodings = null;
 	}
@@ -104,7 +105,6 @@ public class HTTPPayload {
 		this.body = body;
 	}
 
-	@Nullable
 	public ResponseContent getBody() {
 		return body;
 	}
@@ -127,13 +127,15 @@ public class HTTPPayload {
 	}
 
 	public void setResponse(HTTPResponse response) {
+		setStatus(response.status());
 		response.build(this);
 	}
 
 	public void process(HTTPRequest req, int keepAliveTimeout, int maxKeepAliveConnections) throws IOException {
 		String responseEncodings = null;
+		boolean hasBodyData = body.hasData();
 
-		if (encodings != null) {
+		if (encodings != null && hasBodyData) {
 			var sb = new StringBuilder();
 
 			for (var encoding : encodings) {
@@ -158,7 +160,7 @@ public class HTTPPayload {
 		responseHeaders = new ArrayList<>(headers.size()
 			+ (cookies == null ? 0 : cookies.size())
 			+ (cacheControl.isEmpty() ? 0 : 1)
-			+ (body == null ? 0 : 2)
+			+ (hasBodyData ? 2 : 1)
 			+ (responseEncodings == null ? 0 : 1)
 		);
 
@@ -180,21 +182,19 @@ public class HTTPPayload {
 			responseHeaders.add(new Header("Cache-Control", cacheControl));
 		}
 
-		if (body != null) {
-			if (responseEncodings != null) {
-				responseHeaders.add(new Header("Content-Encoding", responseEncodings));
-			}
+		if (responseEncodings != null) {
+			responseHeaders.add(new Header("Content-Encoding", responseEncodings));
+		}
 
-			long contentLength = body.length();
-			var contentType = body.type();
+		long contentLength = body.length();
+		var contentType = body.type();
 
-			if (contentLength >= 0L) {
-				responseHeaders.add(new Header("Content-Length", Long.toUnsignedString(contentLength)));
-			}
+		if (contentLength >= 0L) {
+			responseHeaders.add(new Header("Content-Length", Long.toUnsignedString(contentLength)));
+		}
 
-			if (contentType != null && !contentType.isEmpty()) {
-				responseHeaders.add(new Header("Content-Type", contentType));
-			}
+		if (contentType != null && !contentType.isEmpty()) {
+			responseHeaders.add(new Header("Content-Type", contentType));
 		}
 
 		if (upgrade != null && status == HTTPStatus.SWITCHING_PROTOCOLS) {
@@ -231,7 +231,7 @@ public class HTTPPayload {
 
 		connection.write(buf);
 
-		if (body != null && writeBody) {
+		if (writeBody && body.hasData()) {
 			body.transferTo(connection);
 		}
 	}

@@ -10,7 +10,7 @@ import java.util.Base64;
 import java.util.Map;
 import java.util.UUID;
 
-public record WSEndpointHandler<REQ extends HTTPRequest, WSS extends WSSession<REQ>>(WSSessionFactory<REQ, WSS> factory, Map<UUID, WSS> sessions, boolean daemon) implements WSHandler<REQ, WSS>, HTTPHandler<REQ> {
+public record WSEndpointHandler<REQ extends HTTPRequest, WSS extends WSSession<REQ>>(WSSessionFactory<REQ, WSS> factory, Map<UUID, WSS> sessions) implements WSHandler<REQ, WSS>, HTTPHandler<REQ> {
 	private static final byte[] WEB_SOCKET_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11".getBytes(StandardCharsets.UTF_8);
 
 	@Override

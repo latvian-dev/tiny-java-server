@@ -11,10 +11,7 @@ import dev.latvian.apps.tinyserver.http.Header;
 import dev.latvian.apps.tinyserver.http.response.HTTPPayload;
 import dev.latvian.apps.tinyserver.http.response.HTTPResponse;
 import dev.latvian.apps.tinyserver.http.response.HTTPStatus;
-import dev.latvian.apps.tinyserver.ws.WSEndpointHandler;
-import dev.latvian.apps.tinyserver.ws.WSHandler;
-import dev.latvian.apps.tinyserver.ws.WSSession;
-import dev.latvian.apps.tinyserver.ws.WSSessionFactory;
+import dev.latvian.apps.tinyserver.http.response.error.HTTPError;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
@@ -35,9 +32,9 @@ import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegistry<REQ> {
 	private static final Object DUMMY = new Object();
@@ -167,13 +164,6 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 				hl.staticHandlers().put(Arrays.stream(compiledPath.parts()).map(CompiledPath.Part::name).collect(Collectors.joining("/")), pathHandler);
 			}
 		}
-	}
-
-	@Override
-	public <WSS extends WSSession<REQ>> WSHandler<REQ, WSS> ws(String path, WSSessionFactory<REQ, WSS> factory) {
-		var handler = new WSEndpointHandler<>(factory, new ConcurrentHashMap<>(), daemon);
-		get(path, handler);
-		return handler;
 	}
 
 	@Override
@@ -407,7 +397,6 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 
 					if (builder == null) {
 						builder = createBuilder(req, null);
-						builder.setStatus(HTTPStatus.NOT_FOUND);
 					}
 
 					builder.process(req, keepAliveTimeout, keepAlive ? maxKeepAliveConnections : 0);
@@ -429,6 +418,12 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 
 	public HTTPPayload createBuilder(REQ req, @Nullable HTTPHandler<REQ> handler) {
 		var payload = new HTTPPayload(serverName, Instant.now());
+		var preResponse = req.createPreResponse(handler);
+
+		if (preResponse != null) {
+			payload.setResponse(preResponse);
+			return payload;
+		}
 
 		if (handler != null) {
 			HTTPResponse response;
@@ -438,12 +433,13 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 				response = handler.handle(req);
 				error = null;
 			} catch (Throwable error1) {
-				response = HTTPStatus.INTERNAL_ERROR;
+				response = error1 instanceof HTTPError h ? h.getStatus() : HTTPStatus.INTERNAL_ERROR;
 				error = error1;
 			}
 
-			payload.setStatus(response.status());
 			payload.setResponse(req.handleResponse(payload, response, error));
+		} else {
+			payload.setResponse(HTTPStatus.NOT_FOUND.defaultResponse());
 		}
 
 		return payload;
@@ -465,5 +461,9 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 
 	public Set<HTTPConnection<REQ>> connections() {
 		return publicConnections;
+	}
+
+	public Stream<HTTPPathHandler<REQ>> handlers() {
+		return handlers.values().stream().flatMap(h -> Stream.concat(h.staticHandlers().values().stream(), h.dynamicHandlers().stream()));
 	}
 }

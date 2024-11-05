@@ -238,6 +238,11 @@ public class HTTPRequest {
 		return header("User-Agent");
 	}
 
+	@Nullable
+	public HTTPResponse createPreResponse(@Nullable HTTPHandler<?> handler) {
+		return null;
+	}
+
 	public HTTPResponse handleResponse(HTTPPayload payload, HTTPResponse response, @Nullable Throwable error) {
 		if (error != null) {
 			error.printStackTrace();

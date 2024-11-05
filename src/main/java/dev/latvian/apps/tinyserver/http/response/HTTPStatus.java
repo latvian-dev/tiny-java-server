@@ -92,6 +92,7 @@ public enum HTTPStatus implements HTTPResponse {
 	private final StatusCode statusCode;
 	private final ByteBuffer responseBuffer;
 	private final String string;
+	private HTTPResponse defaultResponse;
 
 	HTTPStatus(int code, String message) {
 		this.code = code;
@@ -143,6 +144,14 @@ public enum HTTPStatus implements HTTPResponse {
 
 	public int code() {
 		return code;
+	}
+
+	public HTTPResponse defaultResponse() {
+		if (defaultResponse == null) {
+			return text(statusCode.message());
+		}
+
+		return defaultResponse;
 	}
 
 	@Override

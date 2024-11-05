@@ -1,5 +1,6 @@
 package dev.latvian.apps.tinyserver.test;
 
+import dev.latvian.apps.tinyserver.http.HTTPHandler;
 import dev.latvian.apps.tinyserver.http.HTTPRequest;
 import dev.latvian.apps.tinyserver.http.response.HTTPPayload;
 import dev.latvian.apps.tinyserver.http.response.HTTPResponse;
@@ -42,5 +43,15 @@ public class TestRequest extends HTTPRequest {
 		}
 
 		return response;
+	}
+
+	@Override
+	@Nullable
+	public HTTPResponse createPreResponse(@Nullable HTTPHandler<?> handler) {
+		if (handler == null) {
+			return HTTPStatus.NOT_FOUND.text("Page Not Found");
+		}
+
+		return super.createPreResponse(handler);
 	}
 }
