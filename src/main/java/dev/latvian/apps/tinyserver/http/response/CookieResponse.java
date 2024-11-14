@@ -8,7 +8,7 @@ public record CookieResponse(HTTPResponse original, String key, String value, Bu
 		private int maxAge = -2;
 		private boolean httpOnly = false;
 		private boolean partitioned = false;
-		private String path = null;
+		private String path = "/";
 		private String sameSite = null;
 		private boolean secure = false;
 		private String comment = null;
