@@ -89,7 +89,7 @@ public class TinyServerTest {
 	}
 
 	private static HTTPResponse console(TestRequest req) throws IOException {
-		wsHandler.broadcastText(req.body());
+		wsHandler.broadcastText(req.mainBody().text());
 		return HTTPResponse.noContent();
 	}
 

@@ -261,16 +261,16 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 					path = path.substring(0, path.length() - 1);
 				}
 
-				Map<String, String> query = queryString.isEmpty() ? Map.of() : new HashMap<>();
+				Map<String, OptionalString> query = queryString.isEmpty() ? Map.of() : new HashMap<>();
 
 				if (!queryString.isEmpty()) {
 					for (var part : queryString.split("&")) {
 						var parts = part.split("=", 2);
 
 						if (parts.length == 2) {
-							query.put(URLDecoder.decode(parts[0], StandardCharsets.UTF_8), URLDecoder.decode(parts[1], StandardCharsets.UTF_8));
+							query.put(URLDecoder.decode(parts[0], StandardCharsets.UTF_8), OptionalString.of(URLDecoder.decode(parts[1], StandardCharsets.UTF_8)));
 						} else {
-							query.put(URLDecoder.decode(parts[0], StandardCharsets.UTF_8), "");
+							query.put(URLDecoder.decode(parts[0], StandardCharsets.UTF_8), OptionalString.EMPTY);
 						}
 					}
 				}
@@ -290,7 +290,7 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 						var header = new Header(parts[0].trim(), parts[1].trim());
 						headers.add(header);
 
-						if (header.is("Connection") && header.value().equalsIgnoreCase("keep-alive")) {
+						if (header.is("Connection") && header.value().asString().equalsIgnoreCase("keep-alive")) {
 							keepAlive = true;
 						}
 					}

@@ -3,18 +3,19 @@ package dev.latvian.apps.tinyserver.http;
 import dev.latvian.apps.tinyserver.CompiledPath;
 import dev.latvian.apps.tinyserver.HTTPConnection;
 import dev.latvian.apps.tinyserver.HTTPServer;
+import dev.latvian.apps.tinyserver.OptionalString;
 import dev.latvian.apps.tinyserver.error.InvalidPathException;
 import dev.latvian.apps.tinyserver.http.response.HTTPPayload;
 import dev.latvian.apps.tinyserver.http.response.HTTPResponse;
 import dev.latvian.apps.tinyserver.http.response.error.client.LengthRequiredError;
+import dev.latvian.apps.tinyserver.http.response.error.server.NotImplementedError;
 import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
-import java.net.URLDecoder;
 import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -29,14 +30,15 @@ public class HTTPRequest {
 	private HTTPMethod method;
 	private String path = "";
 	private String[] pathParts = new String[0];
-	private Map<String, String> variables = Map.of();
+	private Map<String, OptionalString> variables = Map.of();
 	private String queryString = "";
-	private Map<String, String> query = Map.of();
+	private Map<String, OptionalString> query = Map.of();
 	private List<Header> headers = List.of();
-	private Map<String, String> cookies = null;
-	private Map<String, String> formData = null;
+	private Map<String, OptionalString> cookies = null;
+	private Map<String, OptionalString> formData = null;
 	private Set<String> acceptedEncodings = null;
 	private ByteBuffer bodyBuffer = null;
+	private List<Body> bodyList = null;
 
 	@ApiStatus.Internal
 	public final void preInit(HTTPConnection<?> session, Instant startTime, HTTPMethod method) {
@@ -46,7 +48,7 @@ public class HTTPRequest {
 	}
 
 	@ApiStatus.Internal
-	public final void init(String path, String[] pathParts, CompiledPath compiledPath, List<Header> headers, String queryString, Map<String, String> query) {
+	public final void init(String path, String[] pathParts, CompiledPath compiledPath, List<Header> headers, String queryString, Map<String, OptionalString> query) {
 		this.path = path;
 		this.pathParts = pathParts;
 
@@ -57,7 +59,7 @@ public class HTTPRequest {
 				var part = compiledPath.parts()[i];
 
 				if (part.variable() && i < pathParts.length) {
-					variables.put(part.name(), pathParts[i]);
+					variables.put(part.name(), OptionalString.of(pathParts[i]));
 				}
 			}
 		}
@@ -87,14 +89,14 @@ public class HTTPRequest {
 		return startTime;
 	}
 
-	public Map<String, String> variables() {
+	public Map<String, OptionalString> variables() {
 		return variables;
 	}
 
-	public String variable(String name) {
+	public OptionalString variable(String name) {
 		var s = variables.get(name);
 
-		if (s == null || s.isEmpty()) {
+		if (s == null || s.isMissing()) {
 			throw new InvalidPathException("Variable " + name + " not found");
 		}
 
@@ -105,30 +107,26 @@ public class HTTPRequest {
 		return queryString;
 	}
 
-	public Map<String, String> query() {
+	public Map<String, OptionalString> query() {
 		return query;
 	}
 
-	public String query(String key, String def) {
-		return query.getOrDefault(key, def);
-	}
-
-	public String query(String key) {
-		return query(key, "");
+	public OptionalString query(String key) {
+		return query.isEmpty() ? OptionalString.MISSING : query.getOrDefault(key, OptionalString.MISSING);
 	}
 
 	public List<Header> headers() {
 		return Collections.unmodifiableList(headers);
 	}
 
-	public String header(String name) {
+	public OptionalString header(String name) {
 		for (var header : headers) {
 			if (header.is(name)) {
 				return header.value();
 			}
 		}
 
-		return "";
+		return OptionalString.MISSING;
 	}
 
 	public String path() {
@@ -145,14 +143,13 @@ public class HTTPRequest {
 
 	public ByteBuffer bodyBuffer() throws IOException {
 		if (bodyBuffer == null) {
-			var h = header("Content-Length");
+			long len = header("Content-Length").asLong(-1L);
 
-			if (h.isEmpty()) {
+			if (len < 0L) {
 				throw new LengthRequiredError();
 			}
 
-			int len = Integer.parseInt(h);
-			bodyBuffer = ByteBuffer.allocate(len);
+			bodyBuffer = ByteBuffer.allocate((int) len);
 			connection.read(bodyBuffer);
 			bodyBuffer.flip();
 		}
@@ -160,21 +157,44 @@ public class HTTPRequest {
 		return bodyBuffer.position(0);
 	}
 
-	public String body() throws IOException {
-		return StandardCharsets.UTF_8.decode(bodyBuffer()).toString();
+	public List<Body> bodyList() throws IOException {
+		if (bodyList == null) {
+			bodyList = new ArrayList<>(1);
+
+			var ct = header("Content-Type").asString();
+
+			if (ct.startsWith("multipart/form-data")) {
+				// https://developer.mozilla.org/en-US/docs/Web/HTTP/Methods/POST#multipart_form_submission
+				throw new NotImplementedError("Multipart form data is currently not supported!");
+			} else if (ct.startsWith("multipart/")) {
+				// https://developer.mozilla.org/en-US/docs/Web/HTTP/Range_requests#multipart_ranges
+				throw new NotImplementedError("Multipart byte data is currently not supported!");
+			} else {
+				var body = new Body();
+				body.byteBuffer = bodyBuffer();
+				body.contentType = ct;
+				bodyList.add(body);
+			}
+		}
+
+		return bodyList;
 	}
 
-	public Map<String, String> cookies() {
+	public Body mainBody() throws IOException {
+		return bodyList().getFirst();
+	}
+
+	public Map<String, OptionalString> cookies() {
 		if (cookies == null) {
 			cookies = new HashMap<>(4);
 
 			for (var header : headers) {
 				if (header.is("Cookie")) {
-					for (var part : header.value().split("; ")) {
+					for (var part : header.value().asString().split("; ")) {
 						var parts = part.split("=", 2);
 
 						if (parts.length == 2) {
-							cookies.put(parts[0], parts[1]);
+							cookies.put(parts[0], OptionalString.of(parts[1]));
 						}
 					}
 				}
@@ -184,31 +204,21 @@ public class HTTPRequest {
 		return cookies;
 	}
 
-	@Nullable
-	public String cookie(String key) {
-		return cookies().get(key);
+	public OptionalString cookie(String key) {
+		return cookies().getOrDefault(key, OptionalString.MISSING);
 	}
 
-	public Map<String, String> formData() {
+	public Map<String, OptionalString> formData() {
 		if (method == HTTPMethod.GET || method == HTTPMethod.HEAD) {
 			return query;
 		}
 
 		if (formData == null) {
-			formData = new HashMap<>(4);
-
 			try {
-				var body = body();
-
-				for (var part : body.split("&")) {
-					var parts = part.split("=", 2);
-
-					if (parts.length == 2) {
-						formData.put(URLDecoder.decode(parts[0], StandardCharsets.UTF_8), URLDecoder.decode(parts[1], StandardCharsets.UTF_8));
-					}
-				}
-			} catch (IOException e) {
-				e.printStackTrace();
+				formData = mainBody().getPostData();
+			} catch (Exception ex) {
+				ex.printStackTrace();
+				formData = Map.of();
 			}
 		}
 
@@ -221,7 +231,7 @@ public class HTTPRequest {
 
 			for (var header : headers) {
 				if (header.is("Accept-Encoding")) {
-					Arrays.stream(header.value().split(",")).map(s -> s.trim().split(";")).forEach(s -> acceptedEncodings.add(s[0].trim()));
+					Arrays.stream(header.value().asString().split(",")).map(s -> s.trim().split(";")).forEach(s -> acceptedEncodings.add(s[0].trim()));
 				}
 			}
 		}
@@ -229,13 +239,28 @@ public class HTTPRequest {
 		return acceptedEncodings;
 	}
 
-	@Nullable
-	public String formData(String key) {
-		return formData().get(key);
+	public OptionalString formData(String key) {
+		return formData().getOrDefault(key, OptionalString.MISSING);
 	}
 
 	public String userAgent() {
-		return header("User-Agent");
+		return header("User-Agent").asString();
+	}
+
+	public String ip() {
+		return header("CF-Connecting-IP").asString();
+	}
+
+	public String country() {
+		return header("CF-IPCountry").asString("XX");
+	}
+
+	public String gitHubSignature() {
+		return header("X-Hub-Signature").asString();
+	}
+
+	public String gitHubEvent() {
+		return header("X-GitHub-Event").asString();
 	}
 
 	@Nullable

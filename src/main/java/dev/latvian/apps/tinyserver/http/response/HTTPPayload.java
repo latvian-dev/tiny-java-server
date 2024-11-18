@@ -1,6 +1,7 @@
 package dev.latvian.apps.tinyserver.http.response;
 
 import dev.latvian.apps.tinyserver.HTTPConnection;
+import dev.latvian.apps.tinyserver.OptionalString;
 import dev.latvian.apps.tinyserver.content.ByteContent;
 import dev.latvian.apps.tinyserver.content.ResponseContent;
 import dev.latvian.apps.tinyserver.http.HTTPRequest;
@@ -69,15 +70,14 @@ public class HTTPPayload {
 		addHeader(header, value);
 	}
 
-	@Nullable
-	public String getHeader(String header) {
+	public OptionalString getHeader(String header) {
 		for (var h : headers) {
 			if (h.is(header)) {
 				return h.value();
 			}
 		}
 
-		return null;
+		return OptionalString.MISSING;
 	}
 
 	public void setCacheControl(String cacheControl) {
@@ -214,7 +214,7 @@ public class HTTPPayload {
 		int size = 2;
 
 		for (var h : responseHeaders) {
-			size += h.key().length() + 2 + h.value().length() + 2;
+			size += h.key().length() + 2 + h.value().asString().length() + 2;
 		}
 
 		var buf = ByteBuffer.allocate(size);
@@ -222,7 +222,7 @@ public class HTTPPayload {
 		for (var h : responseHeaders) {
 			buf.put(h.key().getBytes(StandardCharsets.US_ASCII));
 			buf.put(HSEP);
-			buf.put(h.value().getBytes(StandardCharsets.US_ASCII));
+			buf.put(h.value().asString().getBytes(StandardCharsets.US_ASCII));
 			buf.put(CRLF);
 		}
 

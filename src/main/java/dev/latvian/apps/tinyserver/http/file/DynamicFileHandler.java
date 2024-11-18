@@ -14,7 +14,7 @@ public record DynamicFileHandler<REQ extends HTTPRequest>(Path directory, FileRe
 	public HTTPResponse handle(REQ req) throws IOException {
 		var pathVar = req.variables().get("path");
 
-		if (pathVar == null) {
+		if (pathVar.isMissing()) {
 			if (autoIndex && Files.exists(directory) && Files.isDirectory(directory) && Files.isReadable(directory)) {
 				return FileIndexHandler.index("/" + req.path(), directory, directory);
 			}
@@ -22,7 +22,7 @@ public record DynamicFileHandler<REQ extends HTTPRequest>(Path directory, FileRe
 			return HTTPStatus.NOT_FOUND;
 		}
 
-		var path = directory.resolve(pathVar);
+		var path = directory.resolve(pathVar.asString());
 
 		if (path.startsWith(directory) && Files.exists(path) && Files.isReadable(path)) {
 			if (Files.isRegularFile(path)) {

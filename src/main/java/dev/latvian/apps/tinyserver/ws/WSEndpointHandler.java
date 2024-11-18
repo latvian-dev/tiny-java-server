@@ -16,7 +16,7 @@ public record WSEndpointHandler<REQ extends HTTPRequest, WSS extends WSSession<R
 	@Override
 	public HTTPResponse handle(REQ req) throws Exception {
 		var session = factory.create();
-		var uuidBase64 = req.header("sec-websocket-key").getBytes(StandardCharsets.UTF_8);
+		var uuidBase64 = req.header("sec-websocket-key").asString().getBytes(StandardCharsets.UTF_8);
 		session.id = UUID.nameUUIDFromBytes(Base64.getDecoder().decode(uuidBase64));
 
 		var digest = MessageDigest.getInstance("SHA-1");

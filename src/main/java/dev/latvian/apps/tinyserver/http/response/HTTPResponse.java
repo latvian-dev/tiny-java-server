@@ -2,6 +2,7 @@ package dev.latvian.apps.tinyserver.http.response;
 
 import dev.latvian.apps.tinyserver.content.ByteContent;
 import dev.latvian.apps.tinyserver.content.FileContent;
+import dev.latvian.apps.tinyserver.content.LazyContent;
 import dev.latvian.apps.tinyserver.content.MimeType;
 import dev.latvian.apps.tinyserver.content.ResponseContent;
 import dev.latvian.apps.tinyserver.http.HTTPUpgrade;
@@ -9,6 +10,9 @@ import dev.latvian.apps.tinyserver.http.response.encoding.DeflateResponseContent
 import dev.latvian.apps.tinyserver.http.response.encoding.GZIPResponseContentEncoding;
 import dev.latvian.apps.tinyserver.http.response.encoding.ResponseContentEncoding;
 
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -121,6 +125,30 @@ public interface HTTPResponse {
 
 	default HTTPResponse json(String json) {
 		return content(json, MimeType.JSON).gzip();
+	}
+
+	default HTTPResponse png(BufferedImage img) {
+		return content(new LazyContent(() -> {
+			try {
+				var bytes = new ByteArrayOutputStream();
+				ImageIO.write(img, "png", bytes);
+				return new ByteContent(bytes.toByteArray(), MimeType.PNG);
+			} catch (Exception ex) {
+				return ByteContent.EMPTY;
+			}
+		})).gzip();
+	}
+
+	default HTTPResponse jpeg(BufferedImage img) {
+		return content(new LazyContent(() -> {
+			try {
+				var bytes = new ByteArrayOutputStream();
+				ImageIO.write(img, "jpeg", bytes);
+				return new ByteContent(bytes.toByteArray(), MimeType.JPEG);
+			} catch (Exception ex) {
+				return ByteContent.EMPTY;
+			}
+		})).gzip();
 	}
 
 	default HTTPResponse encoding(ResponseContentEncoding encoding) {
