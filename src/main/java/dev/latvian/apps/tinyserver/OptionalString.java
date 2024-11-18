@@ -57,6 +57,18 @@ public record OptionalString(String value) {
 		return as(mapper, null);
 	}
 
+	public boolean asBoolean() {
+		return asBoolean(false);
+	}
+
+	public boolean asBoolean(boolean def) {
+		if (value == null) {
+			return def;
+		}
+
+		return value.equalsIgnoreCase("true") || value.equalsIgnoreCase("yes") || value.equalsIgnoreCase("on") || value.equalsIgnoreCase("1");
+	}
+
 	public int asInt() {
 		return asInt(0);
 	}
