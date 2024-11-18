@@ -1,5 +1,9 @@
 package dev.latvian.apps.tinyserver;
 
+import dev.latvian.apps.tinyserver.http.response.error.client.BadRequestError;
+
+import java.util.function.Function;
+
 public record OptionalString(String value) {
 	public static final OptionalString MISSING = new OptionalString(null);
 	public static final OptionalString EMPTY = new OptionalString("");
@@ -16,6 +20,14 @@ public record OptionalString(String value) {
 		return value != null;
 	}
 
+	public OptionalString require() {
+		if (value == null) {
+			throw new BadRequestError("Required value is missing!");
+		}
+
+		return this;
+	}
+
 	@Override
 	public String toString() {
 		return value == null ? "<empty>" : value;
@@ -27,6 +39,22 @@ public record OptionalString(String value) {
 
 	public String asString(String def) {
 		return value == null ? def : value;
+	}
+
+	public <T> T as(Function<String, T> mapper, T def) {
+		if (value == null) {
+			return def;
+		}
+
+		try {
+			return mapper.apply(value);
+		} catch (Throwable ex) {
+			return def;
+		}
+	}
+
+	public <T> T as(Function<String, T> mapper) {
+		return as(mapper, null);
 	}
 
 	public int asInt() {
