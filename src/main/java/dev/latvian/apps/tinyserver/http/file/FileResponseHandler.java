@@ -7,23 +7,12 @@ import java.time.Duration;
 
 @FunctionalInterface
 public interface FileResponseHandler {
-	record Cache(Duration duration, boolean gzip, boolean cacheStyleAndScripts) implements FileResponseHandler {
+	record Cache(Duration duration, Duration styleAndScriptDuration, boolean gzip) implements FileResponseHandler {
 		@Override
 		public HTTPResponse apply(HTTPResponse response, boolean directory, Path path) {
 			if (!directory) {
-				if (!duration.isZero()) {
-					if (cacheStyleAndScripts) {
-						response = response.publicCache(duration);
-					} else {
-						var n = path.toString();
-
-						if (n.endsWith(".css") || n.endsWith(".js")) {
-							response = response.noCache();
-						} else {
-							response = response.publicCache(duration);
-						}
-					}
-				}
+				var n = path.getFileName().toString();
+				response = response.publicCache(n.endsWith(".css") || n.endsWith(".js") ? styleAndScriptDuration : duration);
 
 				if (gzip) {
 					response = response.gzip();
@@ -37,12 +26,12 @@ public interface FileResponseHandler {
 	FileResponseHandler CACHE_5_MIN = cache(Duration.ofMinutes(5L));
 	FileResponseHandler CACHE_1_HOUR = cache(Duration.ofHours(1L));
 
-	static FileResponseHandler cache(Duration duration, boolean gzip, boolean cacheStyleAndScripts) {
-		return new Cache(duration, gzip, cacheStyleAndScripts);
+	static FileResponseHandler cache(Duration duration, Duration styleAndScriptDuration, boolean gzip) {
+		return new Cache(duration, styleAndScriptDuration, gzip);
 	}
 
 	static FileResponseHandler cache(Duration duration) {
-		return new Cache(duration, true, false);
+		return new Cache(duration, duration, true);
 	}
 
 	HTTPResponse apply(HTTPResponse response, boolean directory, Path path);
