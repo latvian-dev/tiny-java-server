@@ -1,6 +1,7 @@
 package dev.latvian.apps.tinyserver.http.response;
 
 import dev.latvian.apps.tinyserver.StatusCode;
+import dev.latvian.apps.tinyserver.content.MimeType;
 import org.jetbrains.annotations.Nullable;
 
 import java.nio.ByteBuffer;
@@ -148,7 +149,7 @@ public enum HTTPStatus implements HTTPResponse {
 
 	public HTTPResponse defaultResponse() {
 		if (defaultResponse == null) {
-			return text(statusCode.message());
+			defaultResponse = content(statusCode.message(), MimeType.TEXT);
 		}
 
 		return defaultResponse;

@@ -91,6 +91,14 @@ public interface HTTPResponse {
 		return cache(false, duration);
 	}
 
+	default HTTPResponse cors(String value) {
+		return new CORSResponse(this, value);
+	}
+
+	default HTTPResponse cors() {
+		return cors("*");
+	}
+
 	default HTTPResponse content(ResponseContent content) {
 		return new ContentResponse(this, content);
 	}
@@ -100,7 +108,7 @@ public interface HTTPResponse {
 	}
 
 	default HTTPResponse content(CharSequence string, String type) {
-		return new ContentResponse(this, new ByteContent(string.toString().getBytes(StandardCharsets.UTF_8), type));
+		return new ContentResponse(this, new ByteContent(String.valueOf(string).getBytes(StandardCharsets.UTF_8), type));
 	}
 
 	default HTTPResponse content(Path file, String overrideType) {

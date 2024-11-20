@@ -42,10 +42,12 @@ public class TinyServerTest {
 		server.post("/form-submit", TinyServerTest::formSubmit);
 
 		var testFilesDir = Path.of("src/test/resources");
-		server.dynamicFiles("/files/dynamic", testFilesDir, FileResponseHandler.publicCache(1L, true), true);
-		server.dynamicFiles("/files/dynamic-no-index", testFilesDir, FileResponseHandler.publicCache(1L, true), false);
-		server.staticFiles("/files/static", testFilesDir, FileResponseHandler.publicCache(1L, true), true);
-		server.staticFiles("/files/static-no-index", testFilesDir, FileResponseHandler.publicCache(1L, true), false);
+		var cache = FileResponseHandler.CACHE_5_MIN;
+
+		server.dynamicFiles("/files/dynamic", testFilesDir, cache, true);
+		server.dynamicFiles("/files/dynamic-no-index", testFilesDir, cache, false);
+		server.staticFiles("/files/static", testFilesDir, cache, true);
+		server.staticFiles("/files/static-no-index", testFilesDir, cache, false);
 
 		wsHandler = server.ws("/console/{console-type}", TestWSSession::new);
 

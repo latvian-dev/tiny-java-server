@@ -37,4 +37,9 @@ public record FileIndexHandler<REQ extends HTTPRequest>(Path rootDirectory, Path
 
 		return HTTPResponse.ok().content(sb, MimeType.HTML);
 	}
+
+	@Override
+	public boolean isFileHandler() {
+		return true;
+	}
 }

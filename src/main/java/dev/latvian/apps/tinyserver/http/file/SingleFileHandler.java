@@ -17,4 +17,9 @@ public record SingleFileHandler<REQ extends HTTPRequest>(Path path, String conte
 
 		return HTTPStatus.NOT_FOUND;
 	}
+
+	@Override
+	public boolean isFileHandler() {
+		return true;
+	}
 }

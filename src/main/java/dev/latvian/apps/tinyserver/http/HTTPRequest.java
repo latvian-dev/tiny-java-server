@@ -251,6 +251,10 @@ public class HTTPRequest {
 		return header("CF-Connecting-IP").asString();
 	}
 
+	public String ipv6() {
+		return header("CF-Connecting-IPv6").asString();
+	}
+
 	public String country() {
 		return header("CF-IPCountry").asString("XX");
 	}
@@ -274,5 +278,8 @@ public class HTTPRequest {
 		}
 
 		return response;
+	}
+
+	public void afterResponse(HTTPPayload payload, HTTPResponse response, @Nullable HTTPHandler<?> handler, @Nullable Throwable error) {
 	}
 }

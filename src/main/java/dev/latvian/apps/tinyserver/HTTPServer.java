@@ -154,14 +154,20 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 		var pathHandler = new HTTPPathHandler<>(method, compiledPath, handler);
 
 		if (compiledPath == CompiledPath.EMPTY) {
-			rootHandlers.put(method, pathHandler);
+			if (!rootHandlers.containsKey(method)) {
+				rootHandlers.put(method, pathHandler);
+			}
 		} else {
 			var hl = handlers.computeIfAbsent(method, HandlerList::new);
 
 			if (compiledPath.variables() > 0) {
 				hl.dynamicHandlers().add(pathHandler);
 			} else {
-				hl.staticHandlers().put(Arrays.stream(compiledPath.parts()).map(CompiledPath.Part::name).collect(Collectors.joining("/")), pathHandler);
+				var p = Arrays.stream(compiledPath.parts()).map(CompiledPath.Part::name).collect(Collectors.joining("/"));
+
+				if (!hl.staticHandlers().containsKey(p)) {
+					hl.staticHandlers().put(p, pathHandler);
+				}
 			}
 		}
 	}
@@ -433,13 +439,17 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 				response = handler.handle(req);
 				error = null;
 			} catch (Throwable error1) {
-				response = error1 instanceof HTTPError h ? h.getStatus() : HTTPStatus.INTERNAL_ERROR;
+				response = (error1 instanceof HTTPError h ? h.getStatus() : HTTPStatus.INTERNAL_ERROR).defaultResponse();
 				error = error1;
 			}
 
-			payload.setResponse(req.handleResponse(payload, response, error));
+			var res = req.handleResponse(payload, response, error);
+			payload.setResponse(res);
+			req.afterResponse(payload, res, handler, error);
 		} else {
-			payload.setResponse(HTTPStatus.NOT_FOUND.defaultResponse());
+			var res = HTTPStatus.NOT_FOUND.defaultResponse();
+			payload.setResponse(res);
+			req.afterResponse(payload, res, null, null);
 		}
 
 		return payload;

@@ -32,6 +32,7 @@ public class HTTPPayload {
 	private HTTPStatus status = HTTPStatus.NO_CONTENT;
 	private final List<Header> headers = new ArrayList<>();
 	private String cacheControl = "";
+	private String cors = "";
 	private Map<String, String> cookies;
 	private ResponseContent body = ByteContent.EMPTY;
 	private HTTPUpgrade<?> upgrade = null;
@@ -51,6 +52,7 @@ public class HTTPPayload {
 		status = HTTPStatus.NO_CONTENT;
 		headers.clear();
 		cacheControl = "";
+		cors = "";
 		cookies = null;
 		body = ByteContent.EMPTY;
 		upgrade = null;
@@ -86,6 +88,14 @@ public class HTTPPayload {
 
 	public String getCacheControl() {
 		return cacheControl;
+	}
+
+	public void setCors(String cors) {
+		this.cors = cors;
+	}
+
+	public String getCors() {
+		return cors;
 	}
 
 	public void setCookie(String key, String value) {
@@ -160,6 +170,7 @@ public class HTTPPayload {
 		responseHeaders = new ArrayList<>(headers.size()
 			+ (cookies == null ? 0 : cookies.size())
 			+ (cacheControl.isEmpty() ? 0 : 1)
+			+ (cors.isEmpty() ? 0 : 1)
 			+ (hasBodyData ? 2 : 1)
 			+ (responseEncodings == null ? 0 : 1)
 		);
@@ -180,6 +191,10 @@ public class HTTPPayload {
 
 		if (!cacheControl.isEmpty()) {
 			responseHeaders.add(new Header("Cache-Control", cacheControl));
+		}
+
+		if (!cors.isEmpty()) {
+			responseHeaders.add(new Header("Access-Control-Allow-Origin", cors));
 		}
 
 		if (responseEncodings != null) {

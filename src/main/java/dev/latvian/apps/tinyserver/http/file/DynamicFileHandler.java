@@ -34,4 +34,9 @@ public record DynamicFileHandler<REQ extends HTTPRequest>(Path directory, FileRe
 
 		return HTTPStatus.NOT_FOUND;
 	}
+
+	@Override
+	public boolean isFileHandler() {
+		return true;
+	}
 }

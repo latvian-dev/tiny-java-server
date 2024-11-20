@@ -2,6 +2,8 @@ package dev.latvian.apps.tinyserver;
 
 import dev.latvian.apps.tinyserver.http.response.error.client.BadRequestError;
 
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.function.Function;
 
 public record OptionalString(String value) {
@@ -147,5 +149,47 @@ public record OptionalString(String value) {
 		} catch (NumberFormatException ex) {
 			return def;
 		}
+	}
+
+	public ZoneId asZoneId() {
+		if (value == null) {
+			return ZoneOffset.UTC;
+		}
+
+		var string = asString("UTC");
+
+		if (string.isEmpty() || string.equals("UTC")) {
+			return ZoneOffset.UTC;
+		} else if (string.startsWith("GMT")) {
+			string = "Etc/" + string;
+		}
+
+		try {
+			return ZoneId.of(string);
+		} catch (Exception ignore) {
+		}
+
+		var l = string.toLowerCase();
+		var allZones = ZoneId.getAvailableZoneIds();
+
+		try {
+			for (var s : allZones) {
+				if (s.toLowerCase().equals(l)) {
+					return ZoneId.of(s);
+				}
+			}
+		} catch (Exception ignore) {
+		}
+
+		try {
+			for (var s : allZones) {
+				if (s.toLowerCase().contains(l)) {
+					return ZoneId.of(s);
+				}
+			}
+		} catch (Exception ignore) {
+		}
+
+		throw new IllegalArgumentException("Unknown zone ID!");
 	}
 }
