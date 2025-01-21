@@ -51,22 +51,12 @@ publishing {
 	}
 
 	repositories {
-		if (ENV.MAVEN_TOKEN) {
+		if (ENV.MAVEN_URL && ENV.MAVEN_USERNAME && ENV.MAVEN_TOKEN) {
 			maven {
-				url "https://maven.latvian.dev/releases"
+				url = ENV.MAVEN_URL
 				credentials {
-					username = "lat"
-					password = "${ENV.MAVEN_TOKEN}"
-				}
-			}
-		}
-
-		if (ENV.SAPS_TOKEN) {
-			maven {
-				url "https://maven.saps.dev/releases"
-				credentials {
-					username = "latvian"
-					password = "${ENV.SAPS_TOKEN}"
+					username = ENV.MAVEN_USERNAME
+					password = ENV.MAVEN_TOKEN
 				}
 			}
 		}

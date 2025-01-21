@@ -4,6 +4,7 @@ import dev.latvian.apps.tinyserver.HTTPConnection;
 import dev.latvian.apps.tinyserver.HTTPServer;
 import dev.latvian.apps.tinyserver.StatusCode;
 
+import java.io.IOException;
 import java.net.SocketTimeoutException;
 import java.nio.channels.ClosedChannelException;
 import java.nio.channels.SocketChannel;
@@ -28,6 +29,8 @@ public class TestConnection extends HTTPConnection<TestRequest> {
 	protected void error(Throwable error) {
 		if (error instanceof SocketTimeoutException || error instanceof ClosedChannelException) {
 			System.out.println("\u001B[31mConnection " + this + " timed out\u001B[0m");
+		} else if (error instanceof IOException io && "Broken pipe".equals(io.getMessage())) {
+			System.out.println("\u001B[31mConnection " + this + " terminated\u001B[0m");
 		} else {
 			error.printStackTrace();
 		}

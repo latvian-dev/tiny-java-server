@@ -121,7 +121,7 @@ public class HTTPConnection<REQ extends HTTPRequest> implements Runnable {
 	}
 
 	protected void error(Throwable error) {
-		if (!(error instanceof SocketTimeoutException || error instanceof ClosedChannelException)) {
+		if (!(error instanceof SocketTimeoutException || error instanceof ClosedChannelException || error instanceof IOException io && "Broken pipe".equals(io.getMessage()))) {
 			error.printStackTrace();
 		}
 	}

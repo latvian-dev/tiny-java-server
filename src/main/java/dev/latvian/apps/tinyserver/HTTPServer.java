@@ -34,10 +34,12 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegistry<REQ> {
 	private static final Object DUMMY = new Object();
+	private static final int[] DEFAULT_PORTS = {8080};
 
 	private final Supplier<REQ> requestFactory;
 	private final Map<HTTPMethod, HandlerList<REQ>> handlers;
@@ -48,8 +50,7 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 	//private Selector selector;
 	private ServerSocketChannel serverSocketChannel;
 	private String address;
-	private int port = 8080;
-	private int maxPortShift = 0;
+	private int[] ports = DEFAULT_PORTS;
 	private boolean daemon = false;
 	private int bufferSize = 0;
 	private int maxKeepAliveConnections = 100;
@@ -74,11 +75,11 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 	}
 
 	public void setPort(int port) {
-		this.port = port;
+		this.ports = new int[]{port};
 	}
 
-	public void setMaxPortShift(int maxPortShift) {
-		this.maxPortShift = Math.max(maxPortShift, 0);
+	public void setPort(IntStream range) {
+		this.ports = range.toArray();
 	}
 
 	public void setDaemon(boolean daemon) {
@@ -104,12 +105,17 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 	public int start() {
 		if (serverSocketChannel != null) {
 			throw new IllegalStateException("Server is already running");
+		} else if (ports.length == 0) {
+			return -1;
 		}
 
 		int boundPort = -1;
 
-		try {
+		Arrays.sort(ports);
+		int minPort = ports[0];
+		int maxPort = ports[ports.length - 1];
 
+		try {
 			serverSocketChannel = ServerSocketChannel.open();
 			serverSocketChannel.configureBlocking(false);
 
@@ -121,7 +127,7 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 
 			var inetAddress = address == null ? null : InetAddress.getByName(address);
 
-			for (int i = port; i <= port + maxPortShift; i++) {
+			for (int i : ports) {
 				try {
 					socket.bind(new InetSocketAddress(inetAddress, i));
 					boundPort = i;
@@ -137,7 +143,7 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 		}
 
 		if (boundPort == -1) {
-			throw new BindFailedException(port, port + maxPortShift);
+			throw new BindFailedException(minPort, maxPort);
 		}
 
 		startThread();
