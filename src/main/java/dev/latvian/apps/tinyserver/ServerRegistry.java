@@ -78,13 +78,15 @@ public interface ServerRegistry<REQ extends HTTPRequest> {
 	default void staticFiles(String path, Path directory, FileResponseHandler responseHandler, boolean autoIndex) throws IOException {
 		path = path.endsWith("/") ? path : (path + "/");
 
-		for (var file : Files.walk(directory).filter(Files::isReadable).toList()) {
-			var rpath = directory.relativize(file).toString();
+		try (var stream = Files.walk(directory)) {
+			for (var file : stream.filter(Files::isReadable).toList()) {
+				var rpath = directory.relativize(file).toString();
 
-			if (Files.isRegularFile(file)) {
-				singleFile(path + rpath, file, responseHandler);
-			} else if (autoIndex && Files.isDirectory(file)) {
-				get(path + rpath, new FileIndexHandler<>(directory, file, responseHandler));
+				if (Files.isRegularFile(file)) {
+					singleFile(path + rpath, file, responseHandler);
+				} else if (autoIndex && Files.isDirectory(file)) {
+					get(path + rpath, new FileIndexHandler<>(directory, file, responseHandler));
+				}
 			}
 		}
 	}
