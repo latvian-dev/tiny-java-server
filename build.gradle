@@ -5,13 +5,10 @@ plugins {
 	id 'maven-publish'
 }
 
-sourceCompatibility = JavaVersion.VERSION_21
-targetCompatibility = JavaVersion.VERSION_21
-
 def ENV = System.getenv()
 version = "${project_version}-${ENV.GITHUB_RUN_NUMBER ? 'build.' + ENV.GITHUB_RUN_NUMBER : 'local.' + Instant.now().epochSecond}"
-archivesBaseName = 'tiny-java-server'
 group = 'dev.latvian.apps'
+base.archivesName = 'tiny-java-server'
 
 println("Building version: ${version}")
 
@@ -35,11 +32,21 @@ jar {
 compileJava {
 	options.encoding = "UTF-8"
 	options.release.set(21)
+	options.compilerArgs << '-parameters' << '-Xmaxerrs' << '1000'
 }
 
 java {
 	sourceCompatibility = targetCompatibility = '21'
 	withSourcesJar()
+	// withJavadocJar()
+}
+
+tasks.withType(Javadoc) {
+	options.addStringOption('Xdoclint:none', '-quiet')
+}
+
+test {
+	failOnNoDiscoveredTests = false
 }
 
 publishing {
