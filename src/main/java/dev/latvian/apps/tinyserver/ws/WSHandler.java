@@ -1,17 +1,31 @@
 package dev.latvian.apps.tinyserver.ws;
 
 import dev.latvian.apps.tinyserver.http.HTTPRequest;
+import org.jetbrains.annotations.NotNull;
 
+import java.util.Iterator;
 import java.util.Map;
+import java.util.Spliterator;
 import java.util.UUID;
 import java.util.function.Supplier;
 
-public interface WSHandler<REQ extends HTTPRequest, WSS extends WSSession<REQ>> {
+public interface WSHandler<REQ extends HTTPRequest, WSS extends WSSession<REQ>> extends Iterable<WSS> {
 	static <REQ extends HTTPRequest, WSS extends WSSession<REQ>> WSHandler<REQ, WSS> empty() {
 		return (WSHandler) EmptyWSHandler.INSTANCE;
 	}
 
 	Map<UUID, WSS> sessions();
+
+	@Override
+	@NotNull
+	default Iterator<WSS> iterator() {
+		return sessions().values().iterator();
+	}
+
+	@Override
+	default Spliterator<WSS> spliterator() {
+		return sessions().values().spliterator();
+	}
 
 	default void broadcast(Frame frame) {
 		var s = sessions().values();

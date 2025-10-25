@@ -11,7 +11,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 public record FileIndexHandler<REQ extends HTTPRequest>(Path rootDirectory, Path directory, FileResponseHandler responseHandler) implements HTTPHandler<REQ> {
-
 	@Override
 	public HTTPResponse handle(REQ req) throws IOException {
 		if (Files.exists(directory) && Files.isReadable(directory) && Files.isDirectory(directory)) {
