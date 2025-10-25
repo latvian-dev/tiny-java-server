@@ -10,7 +10,17 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-public record FileIndexHandler<REQ extends HTTPRequest>(Path rootDirectory, Path directory, FileResponseHandler responseHandler) implements HTTPHandler<REQ> {
+public class FileIndexHandler<REQ extends HTTPRequest> implements HTTPHandler<REQ> {
+	public final Path rootDirectory;
+	public final Path directory;
+	public final FileResponseHandler responseHandler;
+
+	public FileIndexHandler(Path rootDirectory, Path directory, FileResponseHandler responseHandler) {
+		this.rootDirectory = rootDirectory;
+		this.directory = directory;
+		this.responseHandler = responseHandler;
+	}
+
 	@Override
 	public HTTPResponse handle(REQ req) throws IOException {
 		if (Files.exists(directory) && Files.isReadable(directory) && Files.isDirectory(directory)) {

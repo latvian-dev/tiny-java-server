@@ -8,7 +8,16 @@ import dev.latvian.apps.tinyserver.http.response.HTTPStatus;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-public record SingleFileHandler<REQ extends HTTPRequest>(Path path, String contentType, FileResponseHandler responseHandler) implements HTTPHandler<REQ> {
+public class SingleFileHandler<REQ extends HTTPRequest> implements HTTPHandler<REQ> {
+	public final Path path;
+	public final String contentType;
+	public final FileResponseHandler responseHandler;
+
+	public SingleFileHandler(Path path, String contentType, FileResponseHandler responseHandler) {
+		this.path = path;
+		this.contentType = contentType;
+		this.responseHandler = responseHandler;
+	}
 
 	@Override
 	public HTTPResponse handle(REQ req) {

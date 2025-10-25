@@ -9,7 +9,16 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-public record DynamicFileHandler<REQ extends HTTPRequest>(Path directory, FileResponseHandler responseHandler, boolean autoIndex) implements HTTPHandler<REQ> {
+public class DynamicFileHandler<REQ extends HTTPRequest> implements HTTPHandler<REQ> {
+	public final Path directory;
+	public final FileResponseHandler responseHandler;
+	public final boolean autoIndex;
+
+	public DynamicFileHandler(Path directory, FileResponseHandler responseHandler, boolean autoIndex) {
+		this.directory = directory;
+		this.responseHandler = responseHandler;
+		this.autoIndex = autoIndex;
+	}
 
 	@Override
 	public HTTPResponse handle(REQ req) throws IOException {
