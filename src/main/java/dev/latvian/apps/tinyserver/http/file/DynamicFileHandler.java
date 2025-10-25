@@ -10,6 +10,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 public record DynamicFileHandler<REQ extends HTTPRequest>(Path directory, FileResponseHandler responseHandler, boolean autoIndex) implements HTTPHandler<REQ> {
+
 	@Override
 	public HTTPResponse handle(REQ req) throws IOException {
 		var pathVar = req.variables().get("path");

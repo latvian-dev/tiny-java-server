@@ -9,6 +9,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 public record SingleFileHandler<REQ extends HTTPRequest>(Path path, String contentType, FileResponseHandler responseHandler) implements HTTPHandler<REQ> {
+
 	@Override
 	public HTTPResponse handle(REQ req) {
 		if (Files.exists(path) && Files.isReadable(path) && Files.isRegularFile(path)) {
