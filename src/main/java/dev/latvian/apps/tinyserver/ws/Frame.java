@@ -19,6 +19,10 @@ public record Frame(FrameInfo info, byte[] payload) {
 		return simple(Opcode.BINARY, null, buffer);
 	}
 
+	public static Frame ping(byte[] buffer) {
+		return simple(Opcode.PING, null, buffer);
+	}
+
 	public Frame appendTo(@Nullable Frame previous) {
 		if (previous != null) {
 			var newLen = previous.info.size() + info.size();

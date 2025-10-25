@@ -48,6 +48,7 @@ class RXThread extends Thread {
 						session.onPing(frame.payload());
 						session.send(new Frame(new FrameInfo(Opcode.PONG, info.mask(), info.fin(), info.rsv1(), info.rsv2(), info.rsv3(), info.maskKey(), info.size()), frame.payload()));
 					}
+					case PONG -> session.onPong(frame.payload());
 					case CLOSING -> {
 						if (info.size() > 0) {
 							var payload = ByteBuffer.wrap(frame.payload());

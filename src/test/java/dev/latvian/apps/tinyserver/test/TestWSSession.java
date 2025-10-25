@@ -26,4 +26,9 @@ public class TestWSSession extends WSSession<TestRequest> {
 	public void onPing(byte[] payload) {
 		System.out.println("WS Ping: " + new String(payload, StandardCharsets.UTF_8));
 	}
+
+	@Override
+	public void onPong(byte[] payload) {
+		System.out.println("WS Pong: " + new String(payload, StandardCharsets.UTF_8));
+	}
 }

@@ -70,4 +70,28 @@ public interface WSHandler<REQ extends HTTPRequest, WSS extends WSSession<REQ>> 
 			}
 		}
 	}
+
+	default void broadcastPing(byte[] payload) {
+		var s = sessions().values();
+
+		if (!s.isEmpty()) {
+			var p = Frame.ping(payload);
+
+			for (var session : s) {
+				session.send(p);
+			}
+		}
+	}
+
+	default void broadcastPing(Supplier<byte[]> payload) {
+		var s = sessions().values();
+
+		if (!s.isEmpty()) {
+			var p = Frame.ping(payload.get());
+
+			for (var session : s) {
+				session.send(p);
+			}
+		}
+	}
 }

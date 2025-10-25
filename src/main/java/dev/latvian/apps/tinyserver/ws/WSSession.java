@@ -58,6 +58,10 @@ public class WSSession<REQ extends HTTPRequest> implements HTTPUpgrade<REQ> {
 		send(Frame.binary(payload));
 	}
 
+	public final void sendPing(byte[] payload) {
+		send(Frame.ping(payload));
+	}
+
 	public void onOpen(REQ req) {
 	}
 
@@ -74,6 +78,9 @@ public class WSSession<REQ extends HTTPRequest> implements HTTPUpgrade<REQ> {
 	}
 
 	public void onPing(byte[] payload) {
+	}
+
+	public void onPong(byte[] payload) {
 	}
 
 	public final void close(WSCloseStatus status, String reason) {
