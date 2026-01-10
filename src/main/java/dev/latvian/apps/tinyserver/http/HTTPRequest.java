@@ -267,6 +267,22 @@ public class HTTPRequest {
 		return header("X-GitHub-Event").asString();
 	}
 
+	public String host() {
+		var h = header("X-Forwarded-Host").asString();
+		return h.isEmpty() ? header("Host").asString() : h;
+	}
+
+	public String rootUrl() {
+		var h = host();
+
+		if (h.isEmpty() || h.equals("localhost") || h.equals("127.0.0.1")) {
+			return "http://localhost";
+		}
+
+		var p = header("X-Forwarded-Proto").asString("https");
+		return p + "://" + h;
+	}
+
 	@Nullable
 	public HTTPResponse createPreResponse(@Nullable HTTPHandler<?> handler) {
 		return null;
