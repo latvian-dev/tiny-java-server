@@ -1,12 +1,12 @@
 package dev.latvian.apps.tinyserver.http.response;
 
 import dev.latvian.apps.tinyserver.HTTPConnection;
-import dev.latvian.apps.tinyserver.OptionalString;
 import dev.latvian.apps.tinyserver.content.ByteContent;
 import dev.latvian.apps.tinyserver.content.ResponseContent;
 import dev.latvian.apps.tinyserver.http.HTTPRequest;
 import dev.latvian.apps.tinyserver.http.HTTPUpgrade;
 import dev.latvian.apps.tinyserver.http.Header;
+import dev.latvian.apps.tinyserver.http.HeaderConsumer;
 import dev.latvian.apps.tinyserver.http.response.encoding.ResponseContentEncoding;
 import org.jetbrains.annotations.Nullable;
 
@@ -22,7 +22,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-public class HTTPPayload {
+public class HTTPPayload implements HeaderConsumer {
 	public static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("EEE, dd MMM yyyy HH:mm:ss z", Locale.ENGLISH).withZone(ZoneId.of("GMT"));
 	private static final byte[] CRLF = "\r\n".getBytes(StandardCharsets.UTF_8);
 	private static final byte[] HSEP = ": ".getBytes(StandardCharsets.UTF_8);
@@ -48,54 +48,22 @@ public class HTTPPayload {
 		this.status = status;
 	}
 
-	public void clear() {
-		status = HTTPStatus.NO_CONTENT;
-		headers.clear();
-		cacheControl = "";
-		cors = "";
-		cookies = null;
-		body = ByteContent.EMPTY;
-		upgrade = null;
-		encodings = null;
-	}
-
 	public HTTPStatus getStatus() {
 		return status;
 	}
 
-	public void addHeader(String header, Object value) {
-		this.headers.add(new Header(header, String.valueOf(value)));
-	}
-
-	public void setHeader(String header, Object value) {
-		this.headers.removeIf(h -> h.is(header));
-		addHeader(header, value);
-	}
-
-	public OptionalString getHeader(String header) {
-		for (var h : headers) {
-			if (h.is(header)) {
-				return h.value();
-			}
-		}
-
-		return OptionalString.MISSING;
+	@Override
+	public void addHeader(Header header) {
+		this.headers.removeIf(h -> h.is(header.key()));
+		this.headers.add(header);
 	}
 
 	public void setCacheControl(String cacheControl) {
 		this.cacheControl = cacheControl;
 	}
 
-	public String getCacheControl() {
-		return cacheControl;
-	}
-
 	public void setCors(String cors) {
 		this.cors = cors;
-	}
-
-	public String getCors() {
-		return cors;
 	}
 
 	public void setCookie(String key, String value) {
@@ -106,17 +74,8 @@ public class HTTPPayload {
 		cookies.put(key, value);
 	}
 
-	@Nullable
-	public String getCookie(String key) {
-		return cookies == null ? null : cookies.get(key);
-	}
-
 	public void setBody(ResponseContent body) {
 		this.body = body;
-	}
-
-	public ResponseContent getBody() {
-		return body;
 	}
 
 	public void setUpgrade(HTTPUpgrade<?> upgrade) {

@@ -4,7 +4,7 @@ import dev.latvian.apps.tinyserver.error.BindFailedException;
 import dev.latvian.apps.tinyserver.error.InvalidPathException;
 import dev.latvian.apps.tinyserver.http.HTTPHandler;
 import dev.latvian.apps.tinyserver.http.HTTPMethod;
-import dev.latvian.apps.tinyserver.http.HTTPPathHandler;
+import dev.latvian.apps.tinyserver.http.HTTPOptionsHandler;
 import dev.latvian.apps.tinyserver.http.HTTPRequest;
 import dev.latvian.apps.tinyserver.http.HTTPUpgrade;
 import dev.latvian.apps.tinyserver.http.Header;
@@ -12,6 +12,10 @@ import dev.latvian.apps.tinyserver.http.response.HTTPPayload;
 import dev.latvian.apps.tinyserver.http.response.HTTPResponse;
 import dev.latvian.apps.tinyserver.http.response.HTTPStatus;
 import dev.latvian.apps.tinyserver.http.response.error.HTTPError;
+import dev.latvian.apps.tinyserver.util.CompiledPath;
+import dev.latvian.apps.tinyserver.util.HTTPOptionsPathHandler;
+import dev.latvian.apps.tinyserver.util.HTTPPathHandler;
+import dev.latvian.apps.tinyserver.util.HandlerList;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
@@ -30,6 +34,7 @@ import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
@@ -44,8 +49,13 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 	private final Supplier<REQ> requestFactory;
 	private final Map<HTTPMethod, HandlerList<REQ>> handlers;
 	private final Map<HTTPMethod, HTTPPathHandler<REQ>> rootHandlers;
+	private final List<HTTPOptionsPathHandler<REQ>> serverOptionsHandlers;
+	private final List<HTTPOptionsPathHandler<REQ>> rootOptionsHandlers;
+	private final Map<String, List<HTTPOptionsPathHandler<REQ>>> staticOptionsHandlers;
+	private final Map<CompiledPath, List<HTTPOptionsPathHandler<REQ>>> dynamicOptionsHandlers;
 	private final IdentityHashMap<HTTPConnection<REQ>, Object> connections;
 	private final Set<HTTPConnection<REQ>> publicConnections;
+
 	private String serverName;
 	//private Selector selector;
 	private ServerSocketChannel serverSocketChannel;
@@ -61,6 +71,10 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 		this.requestFactory = requestFactory;
 		this.handlers = new EnumMap<>(HTTPMethod.class);
 		this.rootHandlers = new EnumMap<>(HTTPMethod.class);
+		this.serverOptionsHandlers = new ArrayList<>(0);
+		this.rootOptionsHandlers = new ArrayList<>(0);
+		this.staticOptionsHandlers = new HashMap<>(0);
+		this.dynamicOptionsHandlers = new HashMap<>(0);
 		this.connections = new IdentityHashMap<>();
 		this.publicConnections = Collections.unmodifiableSet(connections.keySet());
 		this.serverName = "dev.latvian.apps:tiny-java-server";
@@ -169,13 +183,32 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 			if (compiledPath.variables() > 0) {
 				hl.dynamicHandlers().add(pathHandler);
 			} else {
-				var p = Arrays.stream(compiledPath.parts()).map(CompiledPath.Part::name).collect(Collectors.joining("/"));
+				var p = compiledPath.toString();
 
 				if (!hl.staticHandlers().containsKey(p)) {
 					hl.staticHandlers().put(p, pathHandler);
 				}
 			}
 		}
+	}
+
+	private List<HTTPOptionsPathHandler<REQ>> getOptionsHandlerList(CompiledPath compiledPath) {
+		if (compiledPath == CompiledPath.EMPTY) {
+			return rootOptionsHandlers;
+		} else if (compiledPath == CompiledPath.STAR) {
+			return serverOptionsHandlers;
+		} else if (compiledPath.variables() > 0) {
+			return dynamicOptionsHandlers.computeIfAbsent(compiledPath, key -> new ArrayList<>());
+		} else {
+			return staticOptionsHandlers.computeIfAbsent(compiledPath.toString(), key -> new ArrayList<>());
+		}
+	}
+
+	@Override
+	public void options(String path, HTTPOptionsHandler<REQ> handler) {
+		var compiledPath = CompiledPath.compile(path);
+		var pathHandler = new HTTPOptionsPathHandler<>(compiledPath, handler);
+		getOptionsHandlerList(compiledPath).add(pathHandler);
 	}
 
 	@Override
@@ -312,16 +345,26 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 				req.preInit(connection, startTime, originalMethod);
 
 				if (method == HTTPMethod.OPTIONS) {
+					var builder = createBuilder(req, null);
+
 					var allowed = new HashSet<HTTPMethod>();
 					allowed.add(HTTPMethod.OPTIONS);
 
 					if (path.isEmpty()) {
 						allowed.addAll(rootHandlers.keySet());
+
+						for (var h : rootOptionsHandlers) {
+							h.handler().handle(req, builder);
+						}
 					} else if (path.equals("*")) {
 						allowed.addAll(rootHandlers.keySet());
 
 						for (var handler : handlers.entrySet()) {
 							allowed.add(handler.getKey());
+						}
+
+						for (var h : serverOptionsHandlers) {
+							h.handler().handle(req, builder);
 						}
 					} else {
 						var pathParts = path.split("/");
@@ -337,7 +380,9 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 						}
 
 						for (var handler : handlers.entrySet()) {
-							if (handler.getValue().staticHandlers().containsKey(path)) {
+							var staticHandler = handler.getValue().staticHandlers().get(path);
+
+							if (staticHandler != null) {
 								allowed.add(handler.getKey());
 							}
 
@@ -347,15 +392,31 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 								}
 							}
 						}
+
+						var soHandlers = staticOptionsHandlers.get(path);
+
+						if (soHandlers != null) {
+							for (var h : soHandlers) {
+								h.handler().handle(req, builder);
+							}
+						}
+
+						for (var doHandlers : dynamicOptionsHandlers.entrySet()) {
+							if (doHandlers.getKey().matches(pathParts) != null) {
+								for (var h : doHandlers.getValue()) {
+									h.handler().handle(req, builder);
+								}
+							}
+						}
 					}
 
 					if (allowed.contains(HTTPMethod.GET)) {
 						allowed.add(HTTPMethod.HEAD);
 					}
 
-					var builder = createBuilder(req, null);
+					allowed.remove(HTTPMethod.OPTIONS);
 					builder.setStatus(HTTPStatus.NO_CONTENT);
-					builder.addHeader("Allow", allowed.stream().map(HTTPMethod::name).collect(Collectors.joining(",")));
+					builder.addHeader("Allow", allowed.stream().map(HTTPMethod::getName).collect(Collectors.joining(", ")));
 					builder.process(req, keepAliveTimeout, keepAlive ? maxKeepAliveConnections : 0);
 					builder.write(connection, writeBody);
 				} else if (method == HTTPMethod.TRACE) {

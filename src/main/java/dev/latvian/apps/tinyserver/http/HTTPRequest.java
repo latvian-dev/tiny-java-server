@@ -1,14 +1,16 @@
 package dev.latvian.apps.tinyserver.http;
 
-import dev.latvian.apps.tinyserver.CompiledPath;
 import dev.latvian.apps.tinyserver.HTTPConnection;
 import dev.latvian.apps.tinyserver.HTTPServer;
 import dev.latvian.apps.tinyserver.OptionalString;
 import dev.latvian.apps.tinyserver.error.InvalidPathException;
+import dev.latvian.apps.tinyserver.http.body.Body;
+import dev.latvian.apps.tinyserver.http.body.SimpleBody;
 import dev.latvian.apps.tinyserver.http.response.HTTPPayload;
 import dev.latvian.apps.tinyserver.http.response.HTTPResponse;
 import dev.latvian.apps.tinyserver.http.response.error.client.LengthRequiredError;
 import dev.latvian.apps.tinyserver.http.response.error.server.NotImplementedError;
+import dev.latvian.apps.tinyserver.util.CompiledPath;
 import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.Nullable;
 
@@ -170,10 +172,7 @@ public class HTTPRequest {
 				// https://developer.mozilla.org/en-US/docs/Web/HTTP/Range_requests#multipart_ranges
 				throw new NotImplementedError("Multipart byte data is currently not supported!");
 			} else {
-				var body = new Body();
-				body.byteBuffer = bodyBuffer();
-				body.contentType = ct;
-				bodyList.add(body);
+				bodyList.add(new SimpleBody(bodyBuffer(), ct));
 			}
 		}
 

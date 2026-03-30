@@ -1,7 +1,6 @@
-package dev.latvian.apps.tinyserver;
+package dev.latvian.apps.tinyserver.util;
 
 import dev.latvian.apps.tinyserver.http.HTTPMethod;
-import dev.latvian.apps.tinyserver.http.HTTPPathHandler;
 import dev.latvian.apps.tinyserver.http.HTTPRequest;
 
 import java.util.ArrayList;

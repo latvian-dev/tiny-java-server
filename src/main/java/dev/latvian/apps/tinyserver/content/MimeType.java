@@ -15,4 +15,5 @@ public interface MimeType {
 	String PDF = "application/pdf";
 	String ZIP = "application/zip";
 	String JAR = "application/java-archive";
+	String OFFSET_OCTET_STREAM = "application/offset+octet-stream";
 }

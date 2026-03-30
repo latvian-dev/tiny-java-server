@@ -1,7 +1,6 @@
-package dev.latvian.apps.tinyserver.http;
+package dev.latvian.apps.tinyserver.http.body;
 
 import dev.latvian.apps.tinyserver.OptionalString;
-import dev.latvian.apps.tinyserver.content.MimeType;
 
 import java.io.ByteArrayOutputStream;
 import java.net.URLDecoder;
@@ -11,22 +10,14 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-public class Body {
-	ByteBuffer byteBuffer;
-	Map<String, OptionalString> properties; // new LinkedHashMap<>()
-	String name = "";
-	String fileName = "";
-	String contentType = MimeType.TEXT;
+public interface Body {
+	ByteBuffer byteBuffer();
 
-	public ByteBuffer byteBuffer() {
-		return byteBuffer.position(0);
-	}
-
-	public String text() {
+	default String text() {
 		return StandardCharsets.UTF_8.decode(byteBuffer()).toString();
 	}
 
-	public byte[] bytes() {
+	default byte[] bytes() {
 		var buf = byteBuffer();
 
 		try {
@@ -42,23 +33,23 @@ public class Body {
 		}
 	}
 
-	public OptionalString property(String key) {
-		return properties == null || properties.isEmpty() ? OptionalString.MISSING : properties.getOrDefault(key.toLowerCase(), OptionalString.MISSING);
+	default OptionalString property(String key) {
+		return OptionalString.MISSING;
 	}
 
-	public String name() {
-		return name;
+	default String name() {
+		return "";
 	}
 
-	public String fileName() {
-		return fileName;
+	default String fileName() {
+		return "";
 	}
 
-	public String contentType() {
-		return contentType;
+	default String contentType() {
+		return "";
 	}
 
-	public Map<String, OptionalString> getPostData() {
+	default Map<String, OptionalString> getPostData() {
 		var text = text();
 
 		if (text.isEmpty()) {
@@ -86,11 +77,6 @@ public class Body {
 		}
 
 		return map;
-	}
-
-	@Override
-	public String toString() {
-		return name.isEmpty() ? "body" : name;
 	}
 }
 

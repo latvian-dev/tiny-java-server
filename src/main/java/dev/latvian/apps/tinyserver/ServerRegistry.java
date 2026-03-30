@@ -2,12 +2,15 @@ package dev.latvian.apps.tinyserver;
 
 import dev.latvian.apps.tinyserver.http.HTTPHandler;
 import dev.latvian.apps.tinyserver.http.HTTPMethod;
+import dev.latvian.apps.tinyserver.http.HTTPOptionsHandler;
 import dev.latvian.apps.tinyserver.http.HTTPRequest;
 import dev.latvian.apps.tinyserver.http.file.DynamicFileHandler;
 import dev.latvian.apps.tinyserver.http.file.FileIndexHandler;
 import dev.latvian.apps.tinyserver.http.file.FileResponseHandler;
 import dev.latvian.apps.tinyserver.http.file.SingleFileHandler;
 import dev.latvian.apps.tinyserver.http.response.HTTPResponse;
+import dev.latvian.apps.tinyserver.http.tus.TUSCreationHandler;
+import dev.latvian.apps.tinyserver.http.tus.TUSUploadHandler;
 import dev.latvian.apps.tinyserver.ws.WSEndpointHandler;
 import dev.latvian.apps.tinyserver.ws.WSHandler;
 import dev.latvian.apps.tinyserver.ws.WSSession;
@@ -21,6 +24,9 @@ import java.util.function.Consumer;
 
 public interface ServerRegistry<REQ extends HTTPRequest> {
 	void http(HTTPMethod method, String path, HTTPHandler<REQ> handler);
+
+	default void options(String path, HTTPOptionsHandler<REQ> handler) {
+	}
 
 	default void get(String path, HTTPHandler<REQ> handler) {
 		http(HTTPMethod.GET, path, handler);
@@ -99,5 +105,13 @@ public interface ServerRegistry<REQ extends HTTPRequest> {
 
 	default <WSS extends WSSession<REQ>> WSHandler<REQ, WSS> ws(String path) {
 		return ws(path, (WSSessionFactory) WSSessionFactory.DEFAULT);
+	}
+
+	default void tusCreation(String path, TUSCreationHandler<REQ> handler) {
+		TUSCreationHandler.register(this, path, handler);
+	}
+
+	default <DATA> void tusUpload(String path, TUSUploadHandler<REQ, DATA> handler) {
+		TUSUploadHandler.register(this, path, handler);
 	}
 }

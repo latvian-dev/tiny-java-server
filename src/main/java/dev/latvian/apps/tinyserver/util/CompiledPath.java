@@ -1,4 +1,4 @@
-package dev.latvian.apps.tinyserver;
+package dev.latvian.apps.tinyserver.util;
 
 import org.jetbrains.annotations.Nullable;
 
@@ -6,14 +6,27 @@ import java.util.ArrayList;
 
 public record CompiledPath(Part[] parts, String string, int variables, boolean wildcard) {
 	public static final CompiledPath EMPTY = new CompiledPath(new Part[0], "", 0, false);
+	public static final CompiledPath STAR = new CompiledPath(new Part[]{new Part("*", false, false)}, "*", 0, false);
 
-	public record Part(String name, boolean variable) {
+	public record Part(String name, boolean variable, boolean wildcard) {
 		public boolean matches(String string) {
 			return variable || name.equals(string);
 		}
 	}
 
 	public static CompiledPath compile(String string) {
+		if (string.isEmpty()) {
+			return EMPTY;
+		} else if (string.length() == 1) {
+			var c = string.charAt(0);
+
+			if (c == '/' || c == '\\') {
+				return EMPTY;
+			} else if (c == '*') {
+				return STAR;
+			}
+		}
+
 		var ostring = string;
 
 		string = string.trim().replace('\\', '/');
@@ -44,14 +57,14 @@ public record CompiledPath(Part[] parts, String string, int variables, boolean w
 			}
 
 			if (s.startsWith("{") && s.endsWith("}")) {
-				parts.add(new Part(s.substring(1, s.length() - 1), true));
+				parts.add(new Part(s.substring(1, s.length() - 1), true, false));
 				variables++;
 			} else if (s.startsWith("<") && s.endsWith(">")) {
-				parts.add(new Part(s.substring(1, s.length() - 1), true));
+				parts.add(new Part(s.substring(1, s.length() - 1), true, true));
 				variables++;
 				wildcard = true;
 			} else {
-				parts.add(new Part(s, false));
+				parts.add(new Part(s, false, false));
 			}
 
 			toString.add(s);
@@ -101,5 +114,15 @@ public record CompiledPath(Part[] parts, String string, int variables, boolean w
 	@Override
 	public String toString() {
 		return string;
+	}
+
+	@Override
+	public int hashCode() {
+		return string.hashCode();
+	}
+
+	@Override
+	public boolean equals(Object obj) {
+		return obj == this || obj instanceof CompiledPath p && string.equals(p.string);
 	}
 }

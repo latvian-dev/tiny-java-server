@@ -1,9 +1,12 @@
 package dev.latvian.apps.tinyserver;
 
 import dev.latvian.apps.tinyserver.http.response.error.client.BadRequestError;
+import dev.latvian.apps.tinyserver.util.Base64EncodedMetadata;
 
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.util.Base64;
+import java.util.LinkedHashMap;
 import java.util.function.Function;
 
 public record OptionalString(String value) {
@@ -191,5 +194,25 @@ public record OptionalString(String value) {
 		}
 
 		throw new IllegalArgumentException("Unknown zone ID!");
+	}
+
+	public Base64EncodedMetadata asBase64EncodedMetadata() {
+		if (value == null || value.isEmpty()) {
+			return Base64EncodedMetadata.EMPTY;
+		}
+
+		var map = new LinkedHashMap<String, byte[]>();
+
+		for (var pair : value.split(",")) {
+			var parts = pair.split(" ", 2);
+
+			if (parts.length == 2) {
+				map.put(parts[0], Base64.getDecoder().decode(parts[1]));
+			} else if (parts.length == 1) {
+				map.put(parts[0], Base64EncodedMetadata.NO_DATA);
+			}
+		}
+
+		return new Base64EncodedMetadata(map);
 	}
 }

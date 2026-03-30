@@ -8,6 +8,6 @@ public record RedirectResponse(HTTPStatus status, String location) implements HT
 
 	@Override
 	public void build(HTTPPayload payload) {
-		payload.setHeader("Location", location);
+		payload.addHeader("Location", location);
 	}
 }

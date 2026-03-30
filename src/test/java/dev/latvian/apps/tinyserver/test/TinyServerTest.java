@@ -1,10 +1,10 @@
 package dev.latvian.apps.tinyserver.test;
 
 import dev.latvian.apps.tinyserver.HTTPConnection;
-import dev.latvian.apps.tinyserver.http.HTTPPathHandler;
 import dev.latvian.apps.tinyserver.http.file.FileResponseHandler;
 import dev.latvian.apps.tinyserver.http.response.HTTPResponse;
 import dev.latvian.apps.tinyserver.http.response.error.client.UnauthorizedError;
+import dev.latvian.apps.tinyserver.util.HTTPPathHandler;
 import dev.latvian.apps.tinyserver.ws.WSHandler;
 
 import java.io.IOException;
