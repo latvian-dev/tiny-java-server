@@ -16,4 +16,9 @@ public interface MimeType {
 	String ZIP = "application/zip";
 	String JAR = "application/java-archive";
 	String OFFSET_OCTET_STREAM = "application/offset+octet-stream";
+	String CSV = "text/csv";
+	String MARKDOWN = "text/markdown";
+	String MP3 = "audio/mpeg";
+	String OGG = "audio/ogg";
+	String MP4 = "video/mp4";
 }
