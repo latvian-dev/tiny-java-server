@@ -28,8 +28,17 @@ public interface ServerRegistry<REQ extends HTTPRequest> {
 	default void options(String path, HTTPOptionsHandler<REQ> handler) {
 	}
 
-	default void get(String path, HTTPHandler<REQ> handler) {
+	default void head(String path, HTTPHandler<REQ> handler) {
+		http(HTTPMethod.HEAD, path, handler);
+	}
+
+	default void headlessGet(String path, HTTPHandler<REQ> handler) {
 		http(HTTPMethod.GET, path, handler);
+	}
+
+	default void get(String path, HTTPHandler<REQ> handler) {
+		head(path, handler);
+		headlessGet(path, handler);
 	}
 
 	default void post(String path, HTTPHandler<REQ> handler) {

@@ -17,7 +17,8 @@ public interface TUSUploadHandler<REQ extends HTTPRequest, DATA> {
 			headers.addUnsignedHeader("Tus-Max-Size", handler.getMaxChunkSize(req));
 		});
 
-		server.get(path, req -> handler.getResponse(req, handler.createData(req)));
+		server.head(path, req -> handler.headResponse(req, handler.createData(req)));
+		server.headlessGet(path, req -> handler.getResponse(req, handler.createData(req)));
 		server.patch(path, req -> handler.patchResponse(req, handler.createData(req)));
 
 		if (handler.handleTermination()) {
@@ -48,7 +49,7 @@ public interface TUSUploadHandler<REQ extends HTTPRequest, DATA> {
 		return false;
 	}
 
-	default HTTPResponse getResponse(REQ req, DATA data) throws Exception {
+	default HTTPResponse headResponse(REQ req, DATA data) throws Exception {
 		var offset = getOffset(req, data);
 		var size = getSize(req, data);
 
@@ -57,6 +58,10 @@ public interface TUSUploadHandler<REQ extends HTTPRequest, DATA> {
 			.header("Upload-Length", size)
 			.header("Tus-Resumable", "1.0.0")
 			.noCache();
+	}
+
+	default HTTPResponse getResponse(REQ req, DATA data) throws Exception {
+		return headResponse(req, data);
 	}
 
 	default HTTPResponse patchResponse(REQ req, DATA data) throws Exception {

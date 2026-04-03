@@ -1,15 +1,15 @@
 package dev.latvian.apps.tinyserver.http;
 
 public enum HTTPMethod {
-	HEAD("HEAD", false),
-	GET("GET", true),
-	POST("POST", true),
-	PUT("PUT", true),
-	PATCH("PATCH", true),
-	DELETE("DELETE", true),
-	OPTIONS("OPTIONS", false),
-	TRACE("TRACE", false),
-	CONNECT("CONNECT", false);
+	HEAD("HEAD", false, false),
+	GET("GET", false, true),
+	POST("POST", true, true),
+	PUT("PUT", true, true),
+	PATCH("PATCH", true, true),
+	DELETE("DELETE", false, true),
+	OPTIONS("OPTIONS", false, false),
+	TRACE("TRACE", false, true),
+	CONNECT("CONNECT", false, false);
 
 	public static HTTPMethod fromString(String method) {
 		return switch (method) {
@@ -27,18 +27,24 @@ public enum HTTPMethod {
 	}
 
 	public final String name;
-	private final boolean body;
+	private final boolean requestBody;
+	private final boolean responseBody;
 
-	HTTPMethod(String name, boolean body) {
+	HTTPMethod(String name, boolean requestBody, boolean responseBody) {
 		this.name = name;
-		this.body = body;
+		this.requestBody = requestBody;
+		this.responseBody = responseBody;
 	}
 
 	public String getName() {
 		return name;
 	}
 
-	public boolean body() {
-		return body;
+	public boolean requestBody() {
+		return requestBody;
+	}
+
+	public boolean responseBody() {
+		return responseBody;
 	}
 }

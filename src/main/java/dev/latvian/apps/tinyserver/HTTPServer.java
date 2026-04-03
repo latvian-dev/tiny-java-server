@@ -280,12 +280,7 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 			var firstLine = firstLineStr.split(" ", 2);
 
 			var method = firstLine.length == 2 ? HTTPMethod.fromString(firstLine[0]) : null;
-			boolean writeBody = method != null && method.body();
-			var originalMethod = method;
-
-			if (method == HTTPMethod.HEAD) {
-				method = HTTPMethod.GET;
-			}
+			boolean writeBody = method != null && method.responseBody();
 
 			if (method != null) {
 				var path = firstLine[1];
@@ -342,7 +337,7 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 				}
 
 				var req = requestFactory.get();
-				req.preInit(connection, startTime, originalMethod);
+				req.preInit(connection, startTime, method);
 
 				if (method == HTTPMethod.OPTIONS) {
 					var builder = createBuilder(req, null);
@@ -408,10 +403,6 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 								}
 							}
 						}
-					}
-
-					if (allowed.contains(HTTPMethod.GET)) {
-						allowed.add(HTTPMethod.HEAD);
 					}
 
 					allowed.remove(HTTPMethod.OPTIONS);

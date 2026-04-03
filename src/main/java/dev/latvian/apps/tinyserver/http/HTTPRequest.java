@@ -208,7 +208,7 @@ public class HTTPRequest {
 	}
 
 	public Map<String, OptionalString> formData() {
-		if (method == HTTPMethod.GET || method == HTTPMethod.HEAD) {
+		if (!method.requestBody()) {
 			return query;
 		}
 
