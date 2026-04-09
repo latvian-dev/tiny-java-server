@@ -41,11 +41,9 @@ public interface TUSCreationHandler<REQ extends HTTPRequest> {
 
 			return HTTPResponse.created()
 				.header("Location", result.location())
-				.header("Tus-Resumable", "1.0.0");
+				.header("Tus-Resumable", "1.0.0")
+				.headers(result.headers());
 		});
-	}
-
-	record CreationData(String location) {
 	}
 
 	default int getMaxChunkSize(REQ req) {
@@ -57,5 +55,5 @@ public interface TUSCreationHandler<REQ extends HTTPRequest> {
 		return null;
 	}
 
-	CreationData createUpload(REQ request, long uploadLength, Base64EncodedMetadata uploadMetadata) throws Exception;
+	TUSCreationData createUpload(REQ request, long uploadLength, Base64EncodedMetadata uploadMetadata) throws Exception;
 }

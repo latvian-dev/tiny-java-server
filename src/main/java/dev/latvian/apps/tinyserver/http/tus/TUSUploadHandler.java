@@ -26,9 +26,6 @@ public interface TUSUploadHandler<REQ extends HTTPRequest, DATA> {
 		}
 	}
 
-	record UploadData(long offset) {
-	}
-
 	default int getMaxChunkSize(REQ req) {
 		return 52428800; // 50 MiB
 	}
@@ -39,7 +36,7 @@ public interface TUSUploadHandler<REQ extends HTTPRequest, DATA> {
 
 	long getOffset(REQ req, DATA data) throws Exception;
 
-	UploadData write(REQ req, DATA data, Body body) throws Exception;
+	TUSUploadData write(REQ req, DATA data, Body body) throws Exception;
 
 	default boolean handleTermination() {
 		return false;
@@ -76,8 +73,9 @@ public interface TUSUploadHandler<REQ extends HTTPRequest, DATA> {
 		var result = write(req, data, body);
 
 		return HTTPResponse.noContent()
-			.header("Upload-Offset", Long.toUnsignedString(result.offset))
-			.header("Tus-Resumable", "1.0.0");
+			.header("Upload-Offset", Long.toUnsignedString(result.offset()))
+			.header("Tus-Resumable", "1.0.0")
+			.headers(result.headers());
 	}
 
 	default HTTPResponse deleteResponse(REQ req, DATA data) throws Exception {

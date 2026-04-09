@@ -16,6 +16,7 @@ import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.Map;
 import java.util.function.UnaryOperator;
 
 public interface HTTPResponse {
@@ -58,6 +59,18 @@ public interface HTTPResponse {
 	HTTPStatus status();
 
 	void build(HTTPPayload payload);
+
+	default HTTPResponse headers(Map<String, ?> headers) {
+		var res = this;
+
+		for (var entry : headers.entrySet()) {
+			var key = entry.getKey();
+			var value = entry.getValue();
+			res = res.header(key, value);
+		}
+
+		return res;
+	}
 
 	default HTTPResponse header(String header, Object value) {
 		return new HeaderResponse(this, header, String.valueOf(value));
