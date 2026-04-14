@@ -9,14 +9,19 @@ import java.util.UUID;
 import java.util.concurrent.locks.LockSupport;
 
 public class WSSession<REQ extends HTTPRequest> implements HTTPUpgrade<REQ> {
+	public final REQ req;
 	HTTPConnection<?> connection;
 	WSEndpointHandler<REQ, ?> handler;
 	UUID id;
 	TXThread txThread;
 	RXThread rxThread;
 
+	public WSSession(REQ req) {
+		this.req = req;
+	}
+
 	@Override
-	public final void start(REQ req) {
+	public final void start() {
 		this.connection = req.connection();
 
 		this.txThread = new TXThread(this);
@@ -28,7 +33,7 @@ public class WSSession<REQ extends HTTPRequest> implements HTTPUpgrade<REQ> {
 		this.txThread.start();
 		this.rxThread.start();
 
-		onOpen(req);
+		onOpen();
 	}
 
 	@Override
@@ -62,7 +67,7 @@ public class WSSession<REQ extends HTTPRequest> implements HTTPUpgrade<REQ> {
 		send(Frame.ping(payload));
 	}
 
-	public void onOpen(REQ req) {
+	public void onOpen() {
 	}
 
 	public void onClose(StatusCode reason, boolean remote) {

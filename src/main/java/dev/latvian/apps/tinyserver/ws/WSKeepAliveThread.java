@@ -1,21 +1,21 @@
 package dev.latvian.apps.tinyserver.ws;
 
-import dev.latvian.apps.tinyserver.HTTPServer;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class WSKeepAliveThread extends Thread {
-	public final HTTPServer<?> server;
+	private static final AtomicInteger COUNTER = new AtomicInteger(0);
+
 	public final WSHandler<?, ?> handler;
 
-	public WSKeepAliveThread(HTTPServer<?> server, WSHandler<?, ?> handler, String name) {
-		super("WSKeepAliveThread-" + name);
-		this.server = server;
+	public WSKeepAliveThread(WSHandler<?, ?> handler) {
+		super("WSKeepAliveThread-" + COUNTER.incrementAndGet());
 		this.handler = handler;
 		setDaemon(true);
 	}
 
 	@Override
 	public void run() {
-		while (server.isRunning()) {
+		while (handler.server().isRunning()) {
 			try {
 				for (var session : handler) {
 					session.sendPing(new byte[0]);

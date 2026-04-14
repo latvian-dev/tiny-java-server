@@ -6,8 +6,12 @@ import dev.latvian.apps.tinyserver.ws.WSSession;
 import java.nio.charset.StandardCharsets;
 
 public class TestWSSession extends WSSession<TestRequest> {
+	public TestWSSession(TestRequest req) {
+		super(req);
+	}
+
 	@Override
-	public void onOpen(TestRequest req) {
+	public void onOpen() {
 		System.out.println("WS " + id() + " Connected from " + req.connection());
 		sendText("Hello from " + id() + "! " + req.variables() + ", " + req.headers());
 	}

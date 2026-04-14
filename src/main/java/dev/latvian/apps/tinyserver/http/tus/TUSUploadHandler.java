@@ -7,7 +7,10 @@ import dev.latvian.apps.tinyserver.http.body.Body;
 import dev.latvian.apps.tinyserver.http.response.HTTPResponse;
 import dev.latvian.apps.tinyserver.http.response.HTTPStatus;
 import dev.latvian.apps.tinyserver.http.response.error.client.ContentTooLargeError;
+import dev.latvian.apps.tinyserver.http.response.error.client.UnprocessableContentError;
 import dev.latvian.apps.tinyserver.http.response.error.client.UnsupportedMediaTypeError;
+
+import java.nio.channels.AsynchronousCloseException;
 
 public interface TUSUploadHandler<REQ extends HTTPRequest, DATA> {
 	static <REQ extends HTTPRequest, DATA> void register(ServerRegistry<REQ> server, String path, TUSUploadHandler<REQ, DATA> handler) {
@@ -62,20 +65,24 @@ public interface TUSUploadHandler<REQ extends HTTPRequest, DATA> {
 	}
 
 	default HTTPResponse patchResponse(REQ req, DATA data) throws Exception {
-		var body = req.mainBody();
+		try {
+			var body = req.mainBody();
 
-		if (!body.contentType().equals(MimeType.OFFSET_OCTET_STREAM)) {
-			throw new UnsupportedMediaTypeError();
-		} else if (body.bytes().length > getMaxChunkSize(req)) {
-			throw new ContentTooLargeError();
+			if (!body.contentType().equals(MimeType.OFFSET_OCTET_STREAM)) {
+				throw new UnsupportedMediaTypeError();
+			} else if (body.bytes().length > getMaxChunkSize(req)) {
+				throw new ContentTooLargeError();
+			}
+
+			var result = write(req, data, body);
+
+			return HTTPResponse.noContent()
+				.header("Upload-Offset", Long.toUnsignedString(result.offset()))
+				.header("Tus-Resumable", "1.0.0")
+				.headers(result.headers());
+		} catch (AsynchronousCloseException ex) {
+			throw new UnprocessableContentError("Body buffer was closed");
 		}
-
-		var result = write(req, data, body);
-
-		return HTTPResponse.noContent()
-			.header("Upload-Offset", Long.toUnsignedString(result.offset()))
-			.header("Tus-Resumable", "1.0.0")
-			.headers(result.headers());
 	}
 
 	default HTTPResponse deleteResponse(REQ req, DATA data) throws Exception {

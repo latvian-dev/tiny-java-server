@@ -16,6 +16,11 @@ import dev.latvian.apps.tinyserver.util.CompiledPath;
 import dev.latvian.apps.tinyserver.util.HTTPOptionsPathHandler;
 import dev.latvian.apps.tinyserver.util.HTTPPathHandler;
 import dev.latvian.apps.tinyserver.util.HandlerList;
+import dev.latvian.apps.tinyserver.ws.WSEndpointHandler;
+import dev.latvian.apps.tinyserver.ws.WSHandler;
+import dev.latvian.apps.tinyserver.ws.WSKeepAliveThread;
+import dev.latvian.apps.tinyserver.ws.WSSession;
+import dev.latvian.apps.tinyserver.ws.WSSessionFactory;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
@@ -37,6 +42,7 @@ import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -202,6 +208,18 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 		} else {
 			return staticOptionsHandlers.computeIfAbsent(compiledPath.toString(), key -> new ArrayList<>());
 		}
+	}
+
+	@Override
+	public <WSS extends WSSession<REQ>> WSHandler<REQ, WSS> ws(String path, WSSessionFactory<REQ, WSS> factory, boolean keepAlive) {
+		var handler = new WSEndpointHandler<>(this, factory, new ConcurrentHashMap<>());
+		get(path, handler);
+
+		if (keepAlive) {
+			new WSKeepAliveThread(handler).start();
+		}
+
+		return handler;
 	}
 
 	@Override
@@ -469,7 +487,7 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 					connection.upgrade = (HTTPUpgrade) builder.getUpgrade();
 
 					if (connection.upgrade != null) {
-						connection.upgrade.start(req);
+						connection.upgrade.start();
 					}
 				}
 			}
