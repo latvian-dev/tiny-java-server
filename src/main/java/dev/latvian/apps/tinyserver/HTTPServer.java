@@ -487,7 +487,7 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 					connection.upgrade = (HTTPUpgrade) builder.getUpgrade();
 
 					if (connection.upgrade != null) {
-						connection.upgrade.start();
+						connection.upgrade.start(req);
 					}
 				}
 			}

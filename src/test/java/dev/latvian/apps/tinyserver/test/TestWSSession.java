@@ -6,8 +6,10 @@ import dev.latvian.apps.tinyserver.ws.WSSession;
 import java.nio.charset.StandardCharsets;
 
 public class TestWSSession extends WSSession<TestRequest> {
+	public final TestRequest req;
+
 	public TestWSSession(TestRequest req) {
-		super(req);
+		this.req = req;
 	}
 
 	@Override

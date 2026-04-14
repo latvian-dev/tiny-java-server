@@ -9,19 +9,14 @@ import java.util.UUID;
 import java.util.concurrent.locks.LockSupport;
 
 public class WSSession<REQ extends HTTPRequest> implements HTTPUpgrade<REQ> {
-	public final REQ req;
 	HTTPConnection<?> connection;
 	WSEndpointHandler<REQ, ?> handler;
 	UUID id;
 	TXThread txThread;
 	RXThread rxThread;
 
-	public WSSession(REQ req) {
-		this.req = req;
-	}
-
 	@Override
-	public final void start() {
+	public final void start(REQ req) {
 		this.connection = req.connection();
 
 		this.txThread = new TXThread(this);
