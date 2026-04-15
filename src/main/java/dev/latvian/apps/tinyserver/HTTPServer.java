@@ -31,7 +31,6 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.HashMap;
@@ -42,12 +41,14 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegistry<REQ> {
+	private record PortRange(int min, int max) {
+		private static final PortRange DEFAULT = new PortRange(49152, 65535);
+	}
+
 	private static final Object DUMMY = new Object();
-	private static final int[] DEFAULT_PORTS = {8080};
 
 	private final Supplier<REQ> requestFactory;
 	private final Map<HTTPMethod, HandlerList<REQ>> handlers;
@@ -63,7 +64,7 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 	//private Selector selector;
 	private ServerSocketChannel serverSocketChannel;
 	private String address;
-	private int[] ports;
+	private PortRange ports;
 	private boolean daemon;
 	private int bufferSize;
 	private int maxKeepAliveConnections;
@@ -84,7 +85,7 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 		this.publicConnections = Collections.unmodifiableSet(connections.keySet());
 		this.serverName = "HTTPServer-" + System.currentTimeMillis();
 
-		this.ports = DEFAULT_PORTS;
+		this.ports = PortRange.DEFAULT;
 		this.daemon = false;
 		this.bufferSize = 0;
 		this.maxKeepAliveConnections = 100;
@@ -106,11 +107,23 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 	}
 
 	public void setPort(int port) {
-		this.ports = new int[]{port};
+		if (port <= 1 || port >= 65536) {
+			throw new IllegalArgumentException("Invalid port " + port);
+		}
+
+		this.ports = new PortRange(port, port);
 	}
 
-	public void setPort(IntStream range) {
-		this.ports = range.toArray();
+	public void setPortRange(int min, int max) {
+		if (min <= 1 || max >= 65536 || min > max) {
+			throw new IllegalArgumentException("Invalid port range [" + min + ", " + max + "]");
+		}
+
+		this.ports = new PortRange(min, max);
+	}
+
+	public void setDynamicPort() {
+		this.ports = new PortRange(0, 0);
 	}
 
 	public void setDaemon(boolean daemon) {
@@ -140,15 +153,9 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 	public int start() {
 		if (serverSocketChannel != null) {
 			throw new IllegalStateException("Server is already running");
-		} else if (ports.length == 0) {
-			return -1;
 		}
 
 		boundPort = -1;
-
-		Arrays.sort(ports);
-		int minPort = ports[0];
-		int maxPort = ports[ports.length - 1];
 
 		try {
 			serverSocketChannel = ServerSocketChannel.open();
@@ -162,10 +169,10 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 
 			var inetAddress = address == null ? null : InetAddress.getByName(address);
 
-			for (int i : ports) {
+			for (int i = ports.min; i <= ports.max; i++) {
 				try {
 					socket.bind(new InetSocketAddress(inetAddress, i));
-					boundPort = i;
+					boundPort = socket.getLocalPort();
 					break;
 				} catch (Exception ignore) {
 				}
@@ -178,7 +185,7 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 		}
 
 		if (boundPort == -1) {
-			throw new BindFailedException(minPort, maxPort);
+			throw new BindFailedException(ports.min, ports.max);
 		}
 
 		startThread();

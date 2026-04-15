@@ -13,7 +13,6 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
 public class TinyServerTest {
 	public static TestServer server;
@@ -23,7 +22,7 @@ public class TinyServerTest {
 		server = new TestServer();
 		server.setServerName("TinyServer Test");
 		server.setAddress("127.0.0.1");
-		server.setPort(IntStream.range(8080, 8080 + 10));
+		server.setPortRange(8080, 8090);
 		server.setDaemon(false);
 		server.setKeepAliveTimeout(Duration.ofSeconds(5L));
 		server.setMaxKeepAliveConnections(5);
@@ -51,7 +50,9 @@ public class TinyServerTest {
 
 		wsHandler = server.ws("/console/{console-type}", TestWSSession::new);
 
-		System.out.println("Started server at http://localhost:" + server.start());
+		server.start();
+
+		System.out.println("Started server at http://localhost:" + server.getBoundPort());
 
 		while (server.isRunning()) {
 			var sb = new StringBuilder();
