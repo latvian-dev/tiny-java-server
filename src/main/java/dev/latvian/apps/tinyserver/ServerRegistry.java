@@ -11,6 +11,7 @@ import dev.latvian.apps.tinyserver.http.file.SingleFileHandler;
 import dev.latvian.apps.tinyserver.http.response.HTTPResponse;
 import dev.latvian.apps.tinyserver.http.tus.TUSCreationHandler;
 import dev.latvian.apps.tinyserver.http.tus.TUSUploadHandler;
+import dev.latvian.apps.tinyserver.ws.WSEndpointHandler;
 import dev.latvian.apps.tinyserver.ws.WSHandler;
 import dev.latvian.apps.tinyserver.ws.WSSession;
 import dev.latvian.apps.tinyserver.ws.WSSessionFactory;
@@ -18,12 +19,11 @@ import dev.latvian.apps.tinyserver.ws.WSSessionFactory;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 
 public interface ServerRegistry<REQ extends HTTPRequest> {
 	void http(HTTPMethod method, String path, HTTPHandler<REQ> handler);
-
-	<WSS extends WSSession<REQ>> WSHandler<REQ, WSS> ws(String path, WSSessionFactory<REQ, WSS> factory, boolean keepAlive);
 
 	default void options(String path, HTTPOptionsHandler<REQ> handler) {
 	}
@@ -115,6 +115,8 @@ public interface ServerRegistry<REQ extends HTTPRequest> {
 	}
 
 	default <WSS extends WSSession<REQ>> WSHandler<REQ, WSS> ws(String path, WSSessionFactory<REQ, WSS> factory) {
-		return ws(path, factory, true);
+		var handler = new WSEndpointHandler<>(factory, new ConcurrentHashMap<>());
+		get(path, handler);
+		return handler;
 	}
 }

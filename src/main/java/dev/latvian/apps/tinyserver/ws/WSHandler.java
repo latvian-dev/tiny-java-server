@@ -1,6 +1,5 @@
 package dev.latvian.apps.tinyserver.ws;
 
-import dev.latvian.apps.tinyserver.HTTPServer;
 import dev.latvian.apps.tinyserver.http.HTTPRequest;
 import org.jetbrains.annotations.NotNull;
 
@@ -11,8 +10,6 @@ import java.util.UUID;
 import java.util.function.Supplier;
 
 public interface WSHandler<REQ extends HTTPRequest, WSS extends WSSession<REQ>> extends Iterable<WSS> {
-	HTTPServer<REQ> server();
-
 	Map<UUID, WSS> sessions();
 
 	@Override

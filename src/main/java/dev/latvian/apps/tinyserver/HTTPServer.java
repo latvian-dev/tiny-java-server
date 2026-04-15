@@ -19,8 +19,6 @@ import dev.latvian.apps.tinyserver.util.HandlerList;
 import dev.latvian.apps.tinyserver.ws.WSEndpointHandler;
 import dev.latvian.apps.tinyserver.ws.WSHandler;
 import dev.latvian.apps.tinyserver.ws.WSKeepAliveThread;
-import dev.latvian.apps.tinyserver.ws.WSSession;
-import dev.latvian.apps.tinyserver.ws.WSSessionFactory;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
@@ -42,7 +40,6 @@ import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -66,12 +63,14 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 	//private Selector selector;
 	private ServerSocketChannel serverSocketChannel;
 	private String address;
-	private int[] ports = DEFAULT_PORTS;
-	private boolean daemon = false;
-	private int bufferSize = 0;
-	private int maxKeepAliveConnections = 100;
+	private int[] ports;
+	private boolean daemon;
+	private int bufferSize;
+	private int maxKeepAliveConnections;
 	long now;
-	int keepAliveTimeout = 15;
+	int keepAliveTimeout;
+	private boolean keepWebSocketsAlive;
+	private int boundPort;
 
 	public HTTPServer(Supplier<REQ> requestFactory) {
 		this.requestFactory = requestFactory;
@@ -83,11 +82,23 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 		this.dynamicOptionsHandlers = new HashMap<>(0);
 		this.connections = new IdentityHashMap<>();
 		this.publicConnections = Collections.unmodifiableSet(connections.keySet());
-		this.serverName = "dev.latvian.apps:tiny-java-server";
+		this.serverName = "HTTPServer-" + System.currentTimeMillis();
+
+		this.ports = DEFAULT_PORTS;
+		this.daemon = false;
+		this.bufferSize = 0;
+		this.maxKeepAliveConnections = 100;
+		this.keepAliveTimeout = 15;
+		this.keepWebSocketsAlive = true;
+		this.boundPort = -1;
 	}
 
 	public void setServerName(String name) {
 		this.serverName = name;
+	}
+
+	public String getServerName() {
+		return serverName;
 	}
 
 	public void setAddress(String address) {
@@ -118,6 +129,10 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 		this.keepAliveTimeout = (int) duration.toSeconds();
 	}
 
+	public void setKeepWebSocketsAlive(boolean keepWebSocketsAlive) {
+		this.keepWebSocketsAlive = keepWebSocketsAlive;
+	}
+
 	public boolean isRunning() {
 		return serverSocketChannel != null;
 	}
@@ -129,7 +144,7 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 			return -1;
 		}
 
-		int boundPort = -1;
+		boundPort = -1;
 
 		Arrays.sort(ports);
 		int minPort = ports[0];
@@ -174,6 +189,10 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 		serverSocketChannel = null;
 	}
 
+	public int getBoundPort() {
+		return boundPort;
+	}
+
 	@Override
 	public void http(HTTPMethod method, String path, HTTPHandler<REQ> handler) {
 		var compiledPath = CompiledPath.compile(path);
@@ -208,18 +227,6 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 		} else {
 			return staticOptionsHandlers.computeIfAbsent(compiledPath.toString(), key -> new ArrayList<>());
 		}
-	}
-
-	@Override
-	public <WSS extends WSSession<REQ>> WSHandler<REQ, WSS> ws(String path, WSSessionFactory<REQ, WSS> factory, boolean keepAlive) {
-		var handler = new WSEndpointHandler<>(this, factory, new ConcurrentHashMap<>());
-		get(path, handler);
-
-		if (keepAlive) {
-			new WSKeepAliveThread(handler).start();
-		}
-
-		return handler;
 	}
 
 	@Override
@@ -536,9 +543,17 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 	}
 
 	protected void startThread() {
-		var thread = new Thread(this, serverName == null || serverName.isEmpty() ? ("HTTPServer-" + System.currentTimeMillis()) : serverName);
+		var thread = new Thread(this, getServerName());
 		thread.setDaemon(daemon);
 		thread.start();
+
+		if (keepWebSocketsAlive) {
+			var handlers = wsHandlers();
+
+			if (!handlers.isEmpty()) {
+				new WSKeepAliveThread<>(this, handlers).start();
+			}
+		}
 	}
 
 	protected void queueSession(HTTPConnection<REQ> session) {
@@ -551,5 +566,9 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 
 	public Stream<HTTPPathHandler<REQ>> handlers() {
 		return handlers.values().stream().flatMap(h -> Stream.concat(h.staticHandlers().values().stream(), h.dynamicHandlers().stream()));
+	}
+
+	public List<WSHandler<REQ, ?>> wsHandlers() {
+		return List.copyOf(handlers().filter(h -> h.handler() instanceof WSEndpointHandler).map(h -> (WSEndpointHandler<REQ, ?>) h.handler()).toList());
 	}
 }
