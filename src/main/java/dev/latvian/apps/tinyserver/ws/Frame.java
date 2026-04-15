@@ -5,7 +5,7 @@ import org.jetbrains.annotations.Nullable;
 import java.nio.charset.StandardCharsets;
 
 public record Frame(FrameInfo info, byte[] payload) {
-	static final byte[] EMPTY_PAYLOAD = new byte[0];
+	public static final byte[] EMPTY_PAYLOAD = new byte[0];
 
 	public static Frame simple(Opcode opcode, @Nullable Integer mask, byte[] payload) {
 		return new Frame(new FrameInfo(opcode, mask != null, true, false, false, false, mask != null ? mask : 0, payload.length), payload);

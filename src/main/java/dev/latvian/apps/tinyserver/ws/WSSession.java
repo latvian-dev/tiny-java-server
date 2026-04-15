@@ -62,6 +62,10 @@ public class WSSession<REQ extends HTTPRequest> implements HTTPUpgrade<REQ> {
 		send(Frame.ping(payload));
 	}
 
+	public void sendHeartbeat() {
+		sendPing(Frame.EMPTY_PAYLOAD);
+	}
+
 	public void onOpen() {
 	}
 

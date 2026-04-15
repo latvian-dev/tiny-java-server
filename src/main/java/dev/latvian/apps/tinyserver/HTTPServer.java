@@ -18,7 +18,7 @@ import dev.latvian.apps.tinyserver.util.HTTPPathHandler;
 import dev.latvian.apps.tinyserver.util.HandlerList;
 import dev.latvian.apps.tinyserver.ws.WSEndpointHandler;
 import dev.latvian.apps.tinyserver.ws.WSHandler;
-import dev.latvian.apps.tinyserver.ws.WSKeepAliveThread;
+import dev.latvian.apps.tinyserver.ws.WSHeartbeatThread;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
@@ -69,7 +69,7 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 	private int maxKeepAliveConnections;
 	long now;
 	int keepAliveTimeout;
-	private boolean keepWebSocketsAlive;
+	private long keepWebSocketsAlive;
 	private int boundPort;
 
 	public HTTPServer(Supplier<REQ> requestFactory) {
@@ -89,7 +89,7 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 		this.bufferSize = 0;
 		this.maxKeepAliveConnections = 100;
 		this.keepAliveTimeout = 15;
-		this.keepWebSocketsAlive = true;
+		this.keepWebSocketsAlive = 20_000L;
 		this.boundPort = -1;
 	}
 
@@ -129,8 +129,8 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 		this.keepAliveTimeout = (int) duration.toSeconds();
 	}
 
-	public void setKeepWebSocketsAlive(boolean keepWebSocketsAlive) {
-		this.keepWebSocketsAlive = keepWebSocketsAlive;
+	public void setKeepWebSocketsAlive(long heartbeatInterval) {
+		this.keepWebSocketsAlive = heartbeatInterval;
 	}
 
 	public boolean isRunning() {
@@ -547,11 +547,11 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 		thread.setDaemon(daemon);
 		thread.start();
 
-		if (keepWebSocketsAlive) {
+		if (keepWebSocketsAlive > 0L) {
 			var handlers = wsHandlers();
 
 			if (!handlers.isEmpty()) {
-				new WSKeepAliveThread<>(this, handlers).start();
+				new WSHeartbeatThread<>(this, handlers, keepWebSocketsAlive).start();
 			}
 		}
 	}
