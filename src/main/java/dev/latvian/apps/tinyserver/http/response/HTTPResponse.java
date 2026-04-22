@@ -183,4 +183,8 @@ public interface HTTPResponse {
 	default HTTPResponse deflate() {
 		return encoding(DeflateResponseContentEncoding.INSTANCE);
 	}
+
+	default HTTPResponse download(String fileName) {
+		return header("Content-Disposition", "attachment; filename=\"" + fileName + "\"");
+	}
 }

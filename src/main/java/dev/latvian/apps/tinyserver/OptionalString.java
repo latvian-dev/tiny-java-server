@@ -6,12 +6,17 @@ import dev.latvian.apps.tinyserver.util.Base64EncodedMetadata;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.Base64;
+import java.util.Date;
 import java.util.LinkedHashMap;
+import java.util.Optional;
 import java.util.function.Function;
+import java.util.regex.Pattern;
 
 public record OptionalString(String value) {
 	public static final OptionalString MISSING = new OptionalString(null);
 	public static final OptionalString EMPTY = new OptionalString("");
+
+	private static final Pattern DATE_PATTERN = Pattern.compile("^(\\d{4})-(\\d{2})-(\\d{2})$");
 
 	public static OptionalString of(String str) {
 		return str == null ? MISSING : str.isEmpty() ? EMPTY : new OptionalString(str);
@@ -214,5 +219,22 @@ public record OptionalString(String value) {
 		}
 
 		return new Base64EncodedMetadata(map);
+	}
+
+	public Optional<Date> asDate() {
+		if (isMissing()) {
+			return Optional.empty();
+		}
+
+		var matcher = DATE_PATTERN.matcher(asString().trim().replace('\n', ' '));
+
+		if (!matcher.find()) {
+			throw new BadRequestError("Invalid date, expected yyyy-MM-dd");
+		}
+
+		int year = Integer.parseInt(matcher.group(1));
+		int month = Integer.parseInt(matcher.group(2));
+		int day = Integer.parseInt(matcher.group(3));
+		return Optional.of(new Date(year - 1900, month - 1, day));
 	}
 }
