@@ -6,6 +6,7 @@ import dev.latvian.apps.tinyserver.content.LazyContent;
 import dev.latvian.apps.tinyserver.content.MimeType;
 import dev.latvian.apps.tinyserver.content.ResponseContent;
 import dev.latvian.apps.tinyserver.http.HTTPUpgrade;
+import dev.latvian.apps.tinyserver.http.body.Body;
 import dev.latvian.apps.tinyserver.http.response.encoding.DeflateResponseContentEncoding;
 import dev.latvian.apps.tinyserver.http.response.encoding.GZIPResponseContentEncoding;
 import dev.latvian.apps.tinyserver.http.response.encoding.ResponseContentEncoding;
@@ -185,6 +186,9 @@ public interface HTTPResponse {
 	}
 
 	default HTTPResponse download(String fileName) {
-		return header("Content-Disposition", "attachment; filename=\"" + fileName + "\"");
+		var builder = new StringBuilder(23 + fileName.length());
+		builder.append("attachment; filename=");
+		Body.appendQuotedString(builder, fileName);
+		return header("Content-Disposition", builder.toString());
 	}
 }

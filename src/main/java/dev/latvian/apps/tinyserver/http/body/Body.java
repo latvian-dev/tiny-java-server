@@ -11,6 +11,25 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 public interface Body {
+	static void appendQuotedString(StringBuilder builder, String value) {
+		builder.append('"');
+
+		int len = value.length();
+
+		for (int i = 0; i < len; ++i) {
+			char c = value.charAt(i);
+
+			switch (c) {
+				case '\n' -> builder.append("%0A");
+				case '\r' -> builder.append("%0D");
+				case '"' -> builder.append("%22");
+				default -> builder.append(c);
+			}
+		}
+
+		builder.append('"');
+	}
+
 	ByteBuffer byteBuffer();
 
 	default String text() {
