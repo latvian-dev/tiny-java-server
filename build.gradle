@@ -8,7 +8,7 @@ plugins {
 def ENV = System.getenv()
 version = "${project_version}-${ENV.GITHUB_RUN_NUMBER ? 'build.' + ENV.GITHUB_RUN_NUMBER : 'local.' + Instant.now().epochSecond}"
 group = 'dev.latvian.apps'
-base.archivesName = 'tiny-java-server'
+base.archivesName = 'tiny-http'
 
 println("Building version: ${version}")
 
@@ -52,7 +52,7 @@ test {
 publishing {
 	publications {
 		mavenIchor(MavenPublication) {
-			artifactId = 'tiny-java-server'
+			artifactId = 'tiny-http'
 			from components.java
 		}
 	}
