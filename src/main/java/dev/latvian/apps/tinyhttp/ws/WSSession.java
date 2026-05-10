@@ -99,19 +99,21 @@ public class WSSession<REQ extends HTTPRequest> implements HTTPUpgrade<REQ> {
 	}
 
 	void close0(CloseReason closeReason, @Nullable Throwable error) {
-		closed = true;
-		handler.removeSession(id);
-		var rx = rxThread;
-		rxThread = null;
+		if (!closed) {
+			closed = true;
+			handler.removeSession(id);
+			var rx = rxThread;
+			rxThread = null;
 
-		if (rx != null && rx.isAlive()) {
-			try {
-				rx.interrupt();
-			} catch (Throwable ignore) {
+			if (rx != null && rx.isAlive()) {
+				try {
+					rx.interrupt();
+				} catch (Throwable ignore) {
+				}
 			}
-		}
 
-		onClose(closeReason, error);
+			onClose(closeReason, error);
+		}
 	}
 
 	public void handleException(Throwable ex) {

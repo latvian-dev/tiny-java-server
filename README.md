@@ -1,4 +1,4 @@
-# Tiny Java Server
+# Tiny Java HTTP Server
 
 Gradle dependency:
 
@@ -13,10 +13,10 @@ repositories {
 }
 
 dependencies {
-  implementation "dev.latvian.apps:tiny-java-server:$server_version"
+  implementation "dev.latvian.apps:tiny-http:$server_version"
 }
 ```
 
-Find the latest version [here](https://maven.latvian.dev/releases/dev/latvian/apps/tiny-java-server/maven-metadata.xml)
+Find the latest version [here](https://maven.latvian.dev/releases/dev/latvian/apps/tiny-http/maven-metadata.xml)
 
-Basic example [here](/src/test/java/dev/latvian/apps/tinyserver/test/TinyServerTest.java)
+Basic example [here](/src/test/java/dev/latvian/apps/tinyhttp/test/TinyServerTest.java)
