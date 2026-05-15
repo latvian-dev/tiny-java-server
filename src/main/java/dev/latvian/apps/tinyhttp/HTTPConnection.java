@@ -20,6 +20,8 @@ public class HTTPConnection<REQ extends HTTPRequest> implements Runnable {
 	public static final StatusCode TIMEOUT = new StatusCode(2, "Timeout");
 	public static final StatusCode SOCKET_CLOSED = new StatusCode(3, "Socket Closed");
 	public static final StatusCode INVALID_REQUEST = new StatusCode(3, "Invalid HTTP Request");
+	private static final byte R_BYTE = (byte) '\r';
+	private static final byte N_BYTE = (byte) '\n';
 
 	private final HTTPServer<REQ> server;
 	private final SocketChannel socketChannel;
@@ -189,18 +191,18 @@ public class HTTPConnection<REQ extends HTTPRequest> implements Runnable {
 	}
 
 	public String readCRLF() throws IOException {
-		var bytes = new ByteArrayOutputStream();
+		var bytes = new ByteArrayOutputStream(16);
 
 		while (true) {
-			int b = readByte();
+			byte b = readByte();
 
-			if (b == '\r') {
-				var r = readByte();
+			if (b == R_BYTE) {
+				byte r = readByte();
 
-				if (r == '\n') {
+				if (r == N_BYTE) {
 					break;
 				} else {
-					bytes.write('\r');
+					bytes.write(R_BYTE);
 					bytes.write(r);
 				}
 			} else {

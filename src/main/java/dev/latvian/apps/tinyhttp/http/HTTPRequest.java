@@ -8,6 +8,7 @@ import dev.latvian.apps.tinyhttp.http.body.Body;
 import dev.latvian.apps.tinyhttp.http.body.SimpleBody;
 import dev.latvian.apps.tinyhttp.http.response.HTTPPayload;
 import dev.latvian.apps.tinyhttp.http.response.HTTPResponse;
+import dev.latvian.apps.tinyhttp.http.response.error.client.BadRequestError;
 import dev.latvian.apps.tinyhttp.http.response.error.client.LengthRequiredError;
 import dev.latvian.apps.tinyhttp.http.response.error.server.NotImplementedError;
 import dev.latvian.apps.tinyhttp.util.CompiledPath;
@@ -148,6 +149,36 @@ public class HTTPRequest {
 			long len = header("Content-Length").asLong(-1L);
 
 			if (len < 0L) {
+				if (header("Transfer-Encoding").asString().contains("chunked")) {
+					ByteBuffer buf = null;
+					long lastSize = 0L;
+
+					while (true) {
+						var size = Long.parseUnsignedLong(connection.readCRLF(), 16);
+
+						if (size > 0L) {
+							if (buf == null || size > lastSize) {
+								buf = ByteBuffer.allocate((int) size);
+								lastSize = size;
+							}
+
+							connection.read(buf);
+							buf.flip();
+							bodyBuffer.put(buf);
+
+							if (!connection.readCRLF().isEmpty()) {
+								throw new BadRequestError("Expected empty string after chunk");
+							}
+
+							if (!connection.readCRLF().isEmpty()) {
+								throw new BadRequestError("Expected a second empty string after chunk");
+							}
+						} else {
+							break;
+						}
+					}
+				}
+
 				throw new LengthRequiredError();
 			}
 
