@@ -150,30 +150,34 @@ public class HTTPRequest {
 
 			if (len < 0L) {
 				if (header("Transfer-Encoding").asString().contains("chunked")) {
-					ByteBuffer buf = null;
-					long lastSize = 0L;
+					int bufSize = 0;
 
 					while (true) {
-						var size = Long.parseUnsignedLong(connection.readCRLF(), 16);
+						int size = Integer.parseUnsignedInt(connection.readCRLF(), 16);
 
-						if (size > 0L) {
-							if (buf == null || size > lastSize) {
-								buf = ByteBuffer.allocate((int) size);
-								lastSize = size;
+						if (size > 0) {
+							var newBuf = ByteBuffer.allocate(bufSize + size);
+
+							if (bodyBuffer != null) {
+								newBuf.put(bodyBuffer);
 							}
 
-							connection.read(buf);
-							buf.flip();
-							bodyBuffer.put(buf);
+							connection.read(newBuf);
+							bodyBuffer = newBuf;
+							bufSize += size;
 
 							if (!connection.readCRLF().isEmpty()) {
-								throw new BadRequestError("Expected empty string after chunk");
+								throw new BadRequestError("Expected an empty string after a chunk");
 							}
 
 							if (!connection.readCRLF().isEmpty()) {
-								throw new BadRequestError("Expected a second empty string after chunk");
+								throw new BadRequestError("Expected an empty line after a chunk");
 							}
 						} else {
+							if (!connection.readCRLF().isEmpty()) {
+								throw new BadRequestError("Expected an empty line after the final chunk");
+							}
+
 							break;
 						}
 					}
