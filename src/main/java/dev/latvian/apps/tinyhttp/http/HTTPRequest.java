@@ -166,12 +166,16 @@ public class HTTPRequest {
 							bodyBuffer = newBuf;
 							bufSize += size;
 
-							if (!connection.readCRLF().isEmpty()) {
-								throw new BadRequestError("Expected an empty string after a chunk");
+							var end = connection.readCRLF();
+
+							if (!end.isEmpty()) {
+								throw new BadRequestError("Expected \\r\\n after a chunk, got '" + end + "'");
 							}
 						} else {
-							if (!connection.readCRLF().isEmpty()) {
-								throw new BadRequestError("Expected an empty line after the final chunk");
+							var end = connection.readCRLF();
+
+							if (!end.isEmpty()) {
+								throw new BadRequestError("Expected \\r\\n after the final chunk, got '" + end + "'");
 							}
 
 							break;
