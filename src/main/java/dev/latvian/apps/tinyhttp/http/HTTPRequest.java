@@ -171,6 +171,12 @@ public class HTTPRequest {
 							if (!end.isEmpty()) {
 								throw new BadRequestError("Expected \\r\\n after a chunk, got '" + end + "'");
 							}
+
+							var end2 = connection.readCRLF();
+
+							if (!end2.isEmpty()) {
+								throw new BadRequestError("Expected a second \\r\\n after a chunk, got '" + end2 + "'");
+							}
 						} else {
 							var end = connection.readCRLF();
 
