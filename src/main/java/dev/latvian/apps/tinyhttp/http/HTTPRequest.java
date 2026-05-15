@@ -169,10 +169,6 @@ public class HTTPRequest {
 							if (!connection.readCRLF().isEmpty()) {
 								throw new BadRequestError("Expected an empty string after a chunk");
 							}
-
-							if (!connection.readCRLF().isEmpty()) {
-								throw new BadRequestError("Expected an empty line after a chunk");
-							}
 						} else {
 							if (!connection.readCRLF().isEmpty()) {
 								throw new BadRequestError("Expected an empty line after the final chunk");
