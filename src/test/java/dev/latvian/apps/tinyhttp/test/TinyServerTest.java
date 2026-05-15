@@ -7,18 +7,30 @@ import dev.latvian.apps.tinyhttp.http.response.error.client.UnauthorizedError;
 import dev.latvian.apps.tinyhttp.util.HTTPPathHandler;
 import dev.latvian.apps.tinyhttp.ws.WSHandler;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.net.Socket;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.nio.file.Path;
 import java.time.Duration;
-import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Random;
+import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 
 public class TinyServerTest {
+	private static final HttpClient HTTP_CLIENT = HttpClient
+		.newBuilder()
+		.version(HttpClient.Version.HTTP_1_1)
+		.executor(Executors.newVirtualThreadPerTaskExecutor())
+		.build();
+
 	public static TestServer server;
 	public static WSHandler<TestRequest, TestWSSession> wsHandler;
 
-	public static void main(String[] args) throws IOException {
+	public static void main(String[] args) throws Exception {
 		server = new TestServer();
 		server.setServerName("Tiny HTTP Server Test");
 		server.setAddress("127.0.0.1");
@@ -39,6 +51,7 @@ public class TinyServerTest {
 		server.get("/form", TinyServerTest::form);
 		server.get("/form-submit", TinyServerTest::formSubmit);
 		server.post("/form-submit", TinyServerTest::formSubmit);
+		server.post("/upload", TinyServerTest::upload);
 
 		var testFilesDir = Path.of("src/test/resources");
 		var cache = FileResponseHandler.CACHE_5_MIN;
@@ -66,6 +79,8 @@ public class TinyServerTest {
 
 			if (in.startsWith("/")) {
 				simulateRequest(in);
+			} else if (in.startsWith("!/")) {
+				simulateChunkedUpload(in.substring(1));
 			} else if (in.equals("c")) {
 				var uc = server.connections();
 				System.out.println("Upgraded Connections: (" + uc.size() + ") " + uc);
@@ -125,36 +140,32 @@ public class TinyServerTest {
 		return HTTPResponse.redirect("/form");
 	}
 
+	private static HTTPResponse upload(TestRequest req) throws Exception {
+		var bytes = new byte[128 * 1024];
+		new Random(1L).nextBytes(bytes);
+		return HTTPResponse.ok().text("" + Arrays.equals(bytes, req.mainBody().bytes()));
+	}
+
 	public static void simulateRequest(String path) {
-		var list = new ArrayList<String>();
-		list.add("GET " + path + " HTTP/1.1");
-		list.add("Host: localhost");
-		list.add("Connection: close");
-		list.add("");
+		var request = HttpRequest.newBuilder(URI.create("http://localhost:8080/" + path)).GET().build();
 
-		try (var socket = new Socket("localhost", 8080)) {
-			socket.setSoTimeout(1000);
+		try {
+			var response = HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
+			System.out.println("Response " + response.statusCode() + ":\n" + String.valueOf(response.body()).replace("\r\n", "<CRLF>\n"));
+		} catch (Exception ex) {
+			ex.printStackTrace();
+		}
+	}
 
-			try (var out = socket.getOutputStream()) {
-				for (var line : list) {
-					out.write((line + "\r\n").getBytes());
-				}
+	public static void simulateChunkedUpload(String path) {
+		var bytes = new byte[128 * 1024];
+		new Random(1L).nextBytes(bytes);
+		var body = HttpRequest.BodyPublishers.ofInputStream(() -> new ByteArrayInputStream(bytes));
+		var request = HttpRequest.newBuilder(URI.create("http://localhost:8080/" + path)).POST(body).build();
 
-				out.flush();
-
-				var sb = new StringBuilder();
-
-				try (var in = socket.getInputStream()) {
-					var buffer = new byte[1024];
-					var read = 0;
-
-					while ((read = in.read(buffer)) != -1) {
-						sb.append(new String(buffer, 0, read));
-					}
-				}
-
-				System.out.println("Response:\n" + sb.toString().replace("\r\n", "<CRLF>\n"));
-			}
+		try {
+			var response = HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
+			System.out.println("Response " + response.statusCode() + ":\n" + String.valueOf(response.body()).replace("\r\n", "<CRLF>\n"));
 		} catch (Exception ex) {
 			ex.printStackTrace();
 		}

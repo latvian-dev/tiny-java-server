@@ -2,15 +2,10 @@ package dev.latvian.apps.tinyhttp.http.body;
 
 import java.nio.ByteBuffer;
 
-public record SimpleBody(ByteBuffer byteBuffer, String contentType) implements Body {
+public record SimpleBody(ByteBuffer byteBuffer, int contentLength, String contentType) implements Body {
 	@Override
 	public ByteBuffer byteBuffer() {
 		return byteBuffer.position(0);
-	}
-
-	@Override
-	public String contentType() {
-		return contentType;
 	}
 
 	@Override

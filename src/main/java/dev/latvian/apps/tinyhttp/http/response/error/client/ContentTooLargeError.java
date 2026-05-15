@@ -3,19 +3,12 @@ package dev.latvian.apps.tinyhttp.http.response.error.client;
 import dev.latvian.apps.tinyhttp.http.response.HTTPStatus;
 
 public class ContentTooLargeError extends ClientError {
-	public ContentTooLargeError() {
-	}
+	public long size;
+	public long maxSize;
 
-	public ContentTooLargeError(String message) {
-		super(message);
-	}
-
-	public ContentTooLargeError(String message, Throwable cause) {
-		super(message, cause);
-	}
-
-	public ContentTooLargeError(Throwable cause) {
-		super(cause);
+	public ContentTooLargeError(long size, long maxSize) {
+		this.size = size;
+		this.maxSize = maxSize;
 	}
 
 	@Override

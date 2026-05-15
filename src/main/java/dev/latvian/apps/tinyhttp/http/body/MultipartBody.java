@@ -5,7 +5,7 @@ import dev.latvian.apps.tinyhttp.OptionalString;
 import java.nio.ByteBuffer;
 import java.util.Map;
 
-public record MultipartBody(ByteBuffer byteBuffer, Map<String, OptionalString> properties, String name, String fileName, String contentType) implements Body {
+public record MultipartBody(ByteBuffer byteBuffer, int contentLength, Map<String, OptionalString> properties, String name, String fileName, String contentType) implements Body {
 	@Override
 	public ByteBuffer byteBuffer() {
 		return byteBuffer.position(0);

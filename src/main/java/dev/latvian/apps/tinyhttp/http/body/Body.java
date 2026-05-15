@@ -32,6 +32,8 @@ public interface Body {
 
 	ByteBuffer byteBuffer();
 
+	int contentLength();
+
 	default String text() {
 		return StandardCharsets.UTF_8.decode(byteBuffer()).toString();
 	}

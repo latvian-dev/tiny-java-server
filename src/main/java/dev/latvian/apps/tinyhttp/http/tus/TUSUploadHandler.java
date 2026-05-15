@@ -70,8 +70,13 @@ public interface TUSUploadHandler<REQ extends HTTPRequest, DATA> {
 
 			if (!body.contentType().equals(MimeType.OFFSET_OCTET_STREAM)) {
 				throw new UnsupportedMediaTypeError();
-			} else if (body.bytes().length > getMaxChunkSize(req)) {
-				throw new ContentTooLargeError();
+			}
+
+			int size = body.bytes().length;
+			int maxSize = getMaxChunkSize(req);
+
+			if (size > maxSize) {
+				throw new ContentTooLargeError(size, maxSize);
 			}
 
 			var result = write(req, data, body);

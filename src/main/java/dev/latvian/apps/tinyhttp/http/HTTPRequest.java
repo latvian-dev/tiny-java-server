@@ -9,12 +9,14 @@ import dev.latvian.apps.tinyhttp.http.body.SimpleBody;
 import dev.latvian.apps.tinyhttp.http.response.HTTPPayload;
 import dev.latvian.apps.tinyhttp.http.response.HTTPResponse;
 import dev.latvian.apps.tinyhttp.http.response.error.client.BadRequestError;
+import dev.latvian.apps.tinyhttp.http.response.error.client.ContentTooLargeError;
 import dev.latvian.apps.tinyhttp.http.response.error.client.LengthRequiredError;
 import dev.latvian.apps.tinyhttp.http.response.error.server.NotImplementedError;
 import dev.latvian.apps.tinyhttp.util.CompiledPath;
 import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.Nullable;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.time.Instant;
@@ -24,6 +26,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -40,7 +43,6 @@ public class HTTPRequest {
 	private Map<String, OptionalString> cookies = null;
 	private Map<String, OptionalString> formData = null;
 	private Set<String> acceptedEncodings = null;
-	private ByteBuffer bodyBuffer = null;
 	private List<Body> bodyList = null;
 
 	@ApiStatus.Internal
@@ -144,62 +146,6 @@ public class HTTPRequest {
 		return pathParts;
 	}
 
-	public ByteBuffer bodyBuffer() throws IOException {
-		if (bodyBuffer == null) {
-			long len = header("Content-Length").asLong(-1L);
-
-			if (len < 0L) {
-				if (header("Transfer-Encoding").asString().contains("chunked")) {
-					int bufSize = 0;
-
-					while (true) {
-						int size = Integer.parseUnsignedInt(connection.readCRLF(), 16);
-
-						if (size > 0) {
-							var newBuf = ByteBuffer.allocate(bufSize + size);
-
-							if (bodyBuffer != null) {
-								newBuf.put(bodyBuffer);
-							}
-
-							connection.read(newBuf);
-							bodyBuffer = newBuf;
-							bufSize += size;
-
-							var end = connection.readCRLF();
-
-							if (!end.isEmpty()) {
-								throw new BadRequestError("Expected \\r\\n after a chunk, got '" + end + "'");
-							}
-
-							var end2 = connection.readCRLF();
-
-							if (!end2.isEmpty()) {
-								throw new BadRequestError("Expected a second \\r\\n after a chunk, got '" + end2 + "'");
-							}
-						} else {
-							var end = connection.readCRLF();
-
-							if (!end.isEmpty()) {
-								throw new BadRequestError("Expected \\r\\n after the final chunk, got '" + end + "'");
-							}
-
-							break;
-						}
-					}
-				}
-
-				throw new LengthRequiredError();
-			}
-
-			bodyBuffer = ByteBuffer.allocate((int) len);
-			connection.read(bodyBuffer);
-			bodyBuffer.flip();
-		}
-
-		return bodyBuffer.position(0);
-	}
-
 	public List<Body> bodyList() throws IOException {
 		if (bodyList == null) {
 			bodyList = new ArrayList<>(1);
@@ -213,7 +159,44 @@ public class HTTPRequest {
 				// https://developer.mozilla.org/en-US/docs/Web/HTTP/Range_requests#multipart_ranges
 				throw new NotImplementedError("Multipart byte data is currently not supported!");
 			} else {
-				bodyList.add(new SimpleBody(bodyBuffer(), ct));
+				long len = header("Content-Length").asLong(-1L);
+
+				if (len < 0L) {
+					if (header("Transfer-Encoding").asString().toLowerCase(Locale.ROOT).contains("chunked")) {
+						int chunkSize = Integer.parseUnsignedInt(connection.readCRLF().split(";", 2)[0], 16);
+						var bytes = new ByteArrayOutputStream();
+
+						while (chunkSize > 0) {
+							connection.read(bytes, chunkSize);
+
+							var dataEnd = connection.readCRLF();
+
+							if (!dataEnd.isEmpty()) {
+								throw new BadRequestError("Expected CRLF after chunk data, got '" + dataEnd + "'");
+							}
+
+							chunkSize = Integer.parseUnsignedInt(connection.readCRLF().split(";", 2)[0], 16);
+						}
+
+						var dataEnd = connection.readCRLF();
+
+						if (!dataEnd.isEmpty()) {
+							throw new BadRequestError("Expected CRLF after final chunk data, got '" + dataEnd + "'");
+						}
+
+						var byteArray = bytes.toByteArray();
+						bodyList.add(new SimpleBody(ByteBuffer.wrap(byteArray), byteArray.length, ct));
+					} else {
+						throw new LengthRequiredError();
+					}
+				} else if (len > Integer.MAX_VALUE) {
+					throw new ContentTooLargeError(len, Integer.MAX_VALUE);
+				} else {
+					var bodyBuffer = ByteBuffer.allocate((int) len);
+					connection.read(bodyBuffer);
+					bodyBuffer.flip();
+					bodyList.add(new SimpleBody(bodyBuffer, (int) len, ct));
+				}
 			}
 		}
 
