@@ -1,8 +1,11 @@
 package dev.latvian.apps.tinyhttp.http.body;
 
 import dev.latvian.apps.tinyhttp.OptionalString;
+import org.jetbrains.annotations.Nullable;
 
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.OutputStream;
 import java.net.URLDecoder;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
@@ -30,15 +33,23 @@ public interface Body {
 		builder.append('"');
 	}
 
-	ByteBuffer byteBuffer();
+	ByteBuffer byteBuffer() throws IOException;
 
-	int contentLength();
+	default String contentType() {
+		return "";
+	}
 
-	default String text() {
+	default long transferTo(OutputStream out) throws IOException {
+		var bytes = bytes();
+		out.write(bytes);
+		return bytes.length;
+	}
+
+	default String text() throws IOException {
 		return StandardCharsets.UTF_8.decode(byteBuffer()).toString();
 	}
 
-	default byte[] bytes() {
+	default byte[] bytes() throws IOException {
 		var buf = byteBuffer();
 
 		try {
@@ -54,23 +65,7 @@ public interface Body {
 		}
 	}
 
-	default OptionalString property(String key) {
-		return OptionalString.MISSING;
-	}
-
-	default String name() {
-		return "";
-	}
-
-	default String fileName() {
-		return "";
-	}
-
-	default String contentType() {
-		return "";
-	}
-
-	default Map<String, OptionalString> getPostData() {
+	default Map<String, OptionalString> getPostData() throws IOException {
 		var text = text();
 
 		if (text.isEmpty()) {
@@ -98,6 +93,11 @@ public interface Body {
 		}
 
 		return map;
+	}
+
+	@Nullable
+	default Body nextBody() {
+		return null;
 	}
 }
 

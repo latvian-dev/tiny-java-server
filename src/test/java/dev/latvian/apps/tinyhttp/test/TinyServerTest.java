@@ -8,6 +8,7 @@ import dev.latvian.apps.tinyhttp.util.HTTPPathHandler;
 import dev.latvian.apps.tinyhttp.ws.WSHandler;
 
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -25,10 +26,17 @@ public class TinyServerTest {
 		.newBuilder()
 		.version(HttpClient.Version.HTTP_1_1)
 		.executor(Executors.newVirtualThreadPerTaskExecutor())
+		.connectTimeout(Duration.ofSeconds(30L))
 		.build();
 
 	public static TestServer server;
 	public static WSHandler<TestRequest, TestWSSession> wsHandler;
+
+	public static final byte[] RANDOM_BYTES = new byte[50 * 1024 * 1024];
+
+	static {
+		new Random(1L).nextBytes(RANDOM_BYTES);
+	}
 
 	public static void main(String[] args) throws Exception {
 		server = new TestServer();
@@ -36,7 +44,7 @@ public class TinyServerTest {
 		server.setAddress("127.0.0.1");
 		server.setPortRange(8080, 8090);
 		server.setDaemon(false);
-		server.setKeepAliveTimeout(Duration.ofSeconds(5L));
+		server.setKeepAliveTimeout(Duration.ofSeconds(30L));
 		server.setMaxKeepAliveConnections(5);
 
 		server.get("/", TinyServerTest::homepage);
@@ -107,7 +115,7 @@ public class TinyServerTest {
 	}
 
 	private static HTTPResponse console(TestRequest req) throws IOException {
-		wsHandler.broadcastText(req.mainBody().text());
+		wsHandler.broadcastText(req.body().text());
 		return HTTPResponse.noContent();
 	}
 
@@ -135,15 +143,16 @@ public class TinyServerTest {
 			</form>""");
 	}
 
-	private static HTTPResponse formSubmit(TestRequest req) {
+	private static HTTPResponse formSubmit(TestRequest req) throws Exception {
 		System.out.println("Form data: " + req.formData());
 		return HTTPResponse.redirect("/form");
 	}
 
 	private static HTTPResponse upload(TestRequest req) throws Exception {
-		var bytes = new byte[128 * 1024];
-		new Random(1L).nextBytes(bytes);
-		return HTTPResponse.ok().text("" + Arrays.equals(bytes, req.mainBody().bytes()));
+		var stream = new ByteArrayOutputStream();
+		req.body().transferTo(stream);
+		var reqBytes = stream.toByteArray();
+		return HTTPResponse.ok().text(Arrays.equals(RANDOM_BYTES, reqBytes) + " (" + reqBytes.length + ")");
 	}
 
 	public static void simulateRequest(String path) {
@@ -158,9 +167,7 @@ public class TinyServerTest {
 	}
 
 	public static void simulateChunkedUpload(String path) {
-		var bytes = new byte[128 * 1024];
-		new Random(1L).nextBytes(bytes);
-		var body = HttpRequest.BodyPublishers.ofInputStream(() -> new ByteArrayInputStream(bytes));
+		var body = HttpRequest.BodyPublishers.ofInputStream(() -> new ByteArrayInputStream(RANDOM_BYTES));
 		var request = HttpRequest.newBuilder(URI.create("http://localhost:8080/" + path)).POST(body).build();
 
 		try {

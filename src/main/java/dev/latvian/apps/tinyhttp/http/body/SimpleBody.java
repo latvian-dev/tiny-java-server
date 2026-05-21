@@ -1,11 +1,23 @@
 package dev.latvian.apps.tinyhttp.http.body;
 
-import java.nio.ByteBuffer;
+import dev.latvian.apps.tinyhttp.util.ByteChannelConnection;
 
-public record SimpleBody(ByteBuffer byteBuffer, int contentLength, String contentType) implements Body {
+import java.io.IOException;
+import java.io.OutputStream;
+import java.nio.ByteBuffer;
+import java.nio.channels.Channels;
+
+public record SimpleBody(ByteChannelConnection connection, int contentLength, String contentType) implements Body {
 	@Override
-	public ByteBuffer byteBuffer() {
-		return byteBuffer.position(0);
+	public ByteBuffer byteBuffer() throws IOException {
+		var bodyBuffer = ByteBuffer.allocate(contentLength);
+		connection().read(bodyBuffer);
+		return bodyBuffer.flip();
+	}
+
+	@Override
+	public long transferTo(OutputStream out) throws IOException {
+		return Channels.newInputStream(connection.getChannel()).transferTo(out);
 	}
 
 	@Override

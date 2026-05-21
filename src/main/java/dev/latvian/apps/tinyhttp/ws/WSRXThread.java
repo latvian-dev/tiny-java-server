@@ -12,7 +12,7 @@ class WSRXThread extends Thread {
 	private Frame lastFrame;
 
 	public WSRXThread(HTTPServer<?> server, WSSession<?> session) {
-		super(server.getServerName() + "-WS-RX-" + session.id);
+		super(server.getServerName() + "-WS-RX-" + session.key);
 		this.session = session;
 	}
 

@@ -46,7 +46,7 @@ public interface ServerRegistry<REQ extends HTTPRequest> {
 
 	default void acceptPostString(String path, Consumer<String> handler) {
 		post(path, req -> {
-			handler.accept(req.mainBody().text());
+			handler.accept(req.body().text());
 			return HTTPResponse.noContent();
 		});
 	}

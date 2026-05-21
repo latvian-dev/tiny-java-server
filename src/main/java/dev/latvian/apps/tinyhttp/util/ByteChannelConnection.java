@@ -19,6 +19,10 @@ public class ByteChannelConnection {
 		this.temp = ByteBuffer.allocate(8);
 	}
 
+	public ByteChannel getChannel() {
+		return channel;
+	}
+
 	public void read(ByteBuffer buffer) throws IOException {
 		do {
 			channel.read(buffer);

@@ -11,11 +11,10 @@ import org.jetbrains.annotations.Nullable;
 import java.nio.channels.ClosedByInterruptException;
 import java.nio.channels.ClosedChannelException;
 import java.nio.charset.StandardCharsets;
-import java.util.UUID;
 
 public class WSSession<REQ extends HTTPRequest> implements HTTPUpgrade<REQ> {
 	WSEndpointHandler<REQ, ?> handler;
-	UUID id;
+	String key;
 	HTTPConnection<REQ> connection;
 	OutputOperations outputOperations;
 	WSRXThread rxThread;
@@ -27,7 +26,7 @@ public class WSSession<REQ extends HTTPRequest> implements HTTPUpgrade<REQ> {
 		this.outputOperations = connection.server().getSharedOutputOperations();
 
 		if (this.outputOperations == null) {
-			this.outputOperations = new WSOutputOperations(this, "TX-WS-" + id);
+			this.outputOperations = new WSOutputOperations(this, "TX-WS-" + key);
 		}
 
 		this.rxThread = new WSRXThread(connection.server(), this);
@@ -47,8 +46,8 @@ public class WSSession<REQ extends HTTPRequest> implements HTTPUpgrade<REQ> {
 		return closed;
 	}
 
-	public final UUID id() {
-		return id;
+	public final String key() {
+		return key;
 	}
 
 	public final void send(Frame frame) {
@@ -101,7 +100,7 @@ public class WSSession<REQ extends HTTPRequest> implements HTTPUpgrade<REQ> {
 	void close0(CloseReason closeReason, @Nullable Throwable error) {
 		if (!closed) {
 			closed = true;
-			handler.removeSession(id);
+			handler.removeSession(this);
 			var rx = rxThread;
 			rxThread = null;
 
@@ -138,5 +137,10 @@ public class WSSession<REQ extends HTTPRequest> implements HTTPUpgrade<REQ> {
 
 	public final void close(String message) {
 		close(WSCloseStatus.CLOSED.statusCode.withMessage(message));
+	}
+
+	@Override
+	public String toString() {
+		return "WS-" + key;
 	}
 }

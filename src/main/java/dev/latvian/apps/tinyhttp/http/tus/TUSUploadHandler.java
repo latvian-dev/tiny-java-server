@@ -6,7 +6,6 @@ import dev.latvian.apps.tinyhttp.http.HTTPRequest;
 import dev.latvian.apps.tinyhttp.http.body.Body;
 import dev.latvian.apps.tinyhttp.http.response.HTTPResponse;
 import dev.latvian.apps.tinyhttp.http.response.HTTPStatus;
-import dev.latvian.apps.tinyhttp.http.response.error.client.ContentTooLargeError;
 import dev.latvian.apps.tinyhttp.http.response.error.client.UnprocessableContentError;
 import dev.latvian.apps.tinyhttp.http.response.error.client.UnsupportedMediaTypeError;
 
@@ -65,20 +64,13 @@ public interface TUSUploadHandler<REQ extends HTTPRequest, DATA> {
 	}
 
 	default HTTPResponse patchResponse(REQ req, DATA data) throws Exception {
+		var body = req.body();
+
+		if (!body.contentType().equals(MimeType.OFFSET_OCTET_STREAM)) {
+			throw new UnsupportedMediaTypeError();
+		}
+
 		try {
-			var body = req.mainBody();
-
-			if (!body.contentType().equals(MimeType.OFFSET_OCTET_STREAM)) {
-				throw new UnsupportedMediaTypeError();
-			}
-
-			int size = body.bytes().length;
-			int maxSize = getMaxChunkSize(req);
-
-			if (size > maxSize) {
-				throw new ContentTooLargeError(size, maxSize);
-			}
-
 			var result = write(req, data, body);
 
 			return HTTPResponse.noContent()

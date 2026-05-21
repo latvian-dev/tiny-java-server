@@ -5,20 +5,20 @@ import dev.latvian.apps.tinyhttp.HTTPServer;
 import dev.latvian.apps.tinyhttp.OptionalString;
 import dev.latvian.apps.tinyhttp.error.InvalidPathException;
 import dev.latvian.apps.tinyhttp.http.body.Body;
+import dev.latvian.apps.tinyhttp.http.body.ChunkedBody;
+import dev.latvian.apps.tinyhttp.http.body.ErrorBody;
 import dev.latvian.apps.tinyhttp.http.body.SimpleBody;
 import dev.latvian.apps.tinyhttp.http.response.HTTPPayload;
 import dev.latvian.apps.tinyhttp.http.response.HTTPResponse;
-import dev.latvian.apps.tinyhttp.http.response.error.client.BadRequestError;
 import dev.latvian.apps.tinyhttp.http.response.error.client.ContentTooLargeError;
 import dev.latvian.apps.tinyhttp.http.response.error.client.LengthRequiredError;
+import dev.latvian.apps.tinyhttp.http.response.error.client.UnprocessableContentError;
 import dev.latvian.apps.tinyhttp.http.response.error.server.NotImplementedError;
 import dev.latvian.apps.tinyhttp.util.CompiledPath;
 import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.Nullable;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -43,7 +43,7 @@ public class HTTPRequest {
 	private Map<String, OptionalString> cookies = null;
 	private Map<String, OptionalString> formData = null;
 	private Set<String> acceptedEncodings = null;
-	private List<Body> bodyList = null;
+	private Body body;
 
 	@ApiStatus.Internal
 	public final void preInit(HTTPConnection<?> session, Instant startTime, HTTPMethod method) {
@@ -72,6 +72,32 @@ public class HTTPRequest {
 		this.headers = headers;
 		this.queryString = queryString;
 		this.query = query;
+
+		long len = header("Content-Length").asLong(-1L);
+
+		if (len == 0L) {
+			this.body = null;
+		} else if (len > Integer.MAX_VALUE) {
+			this.body = new ErrorBody(() -> new ContentTooLargeError(len, Integer.MAX_VALUE));
+		} else if (len > 0L) {
+			var ct = header("Content-Type").asString();
+
+			if (ct.startsWith("multipart/form-data")) {
+				// https://developer.mozilla.org/en-US/docs/Web/HTTP/Methods/POST#multipart_form_submission
+				this.body = new ErrorBody(() -> new NotImplementedError("Multipart form data is currently not supported!"));
+			} else if (ct.startsWith("multipart/")) {
+				// https://developer.mozilla.org/en-US/docs/Web/HTTP/Range_requests#multipart_ranges
+				this.body = new ErrorBody(() -> new NotImplementedError("Multipart byte data is currently not supported!"));
+			} else {
+				this.body = new SimpleBody(connection, (int) len, ct);
+			}
+		} else if (header("Transfer-Encoding").asString().toLowerCase(Locale.ROOT).contains("chunked")) {
+			var ct = header("Content-Type").asString();
+			this.body = new ChunkedBody(connection, ct);
+		} else {
+			this.body = new ErrorBody(LengthRequiredError::new);
+		}
+
 		afterInit();
 	}
 
@@ -146,65 +172,35 @@ public class HTTPRequest {
 		return pathParts;
 	}
 
-	public List<Body> bodyList() throws IOException {
-		if (bodyList == null) {
-			bodyList = new ArrayList<>(1);
-
-			var ct = header("Content-Type").asString();
-
-			if (ct.startsWith("multipart/form-data")) {
-				// https://developer.mozilla.org/en-US/docs/Web/HTTP/Methods/POST#multipart_form_submission
-				throw new NotImplementedError("Multipart form data is currently not supported!");
-			} else if (ct.startsWith("multipart/")) {
-				// https://developer.mozilla.org/en-US/docs/Web/HTTP/Range_requests#multipart_ranges
-				throw new NotImplementedError("Multipart byte data is currently not supported!");
-			} else {
-				long len = header("Content-Length").asLong(-1L);
-
-				if (len < 0L) {
-					if (header("Transfer-Encoding").asString().toLowerCase(Locale.ROOT).contains("chunked")) {
-						int chunkSize = Integer.parseUnsignedInt(connection.readCRLF().split(";", 2)[0], 16);
-						var bytes = new ByteArrayOutputStream();
-
-						while (chunkSize > 0) {
-							connection.read(bytes, chunkSize);
-
-							var dataEnd = connection.readCRLF();
-
-							if (!dataEnd.isEmpty()) {
-								throw new BadRequestError("Expected CRLF after chunk data, got '" + dataEnd + "'");
-							}
-
-							chunkSize = Integer.parseUnsignedInt(connection.readCRLF().split(";", 2)[0], 16);
-						}
-
-						var dataEnd = connection.readCRLF();
-
-						if (!dataEnd.isEmpty()) {
-							throw new BadRequestError("Expected CRLF after final chunk data, got '" + dataEnd + "'");
-						}
-
-						var byteArray = bytes.toByteArray();
-						bodyList.add(new SimpleBody(ByteBuffer.wrap(byteArray), byteArray.length, ct));
-					} else {
-						throw new LengthRequiredError();
-					}
-				} else if (len > Integer.MAX_VALUE) {
-					throw new ContentTooLargeError(len, Integer.MAX_VALUE);
-				} else {
-					var bodyBuffer = ByteBuffer.allocate((int) len);
-					connection.read(bodyBuffer);
-					bodyBuffer.flip();
-					bodyList.add(new SimpleBody(bodyBuffer, (int) len, ct));
-				}
-			}
-		}
-
-		return bodyList;
+	@Nullable
+	public Body peekBody() {
+		return body;
 	}
 
-	public Body mainBody() throws IOException {
-		return bodyList().getFirst();
+	public boolean hasBody() {
+		return body != null;
+	}
+
+	public Body body() {
+		var b = body;
+
+		if (b == null) {
+			throw new UnprocessableContentError("This request has no body");
+		}
+
+		body = b.nextBody();
+		return b;
+	}
+
+	public List<Body> allBodies() {
+		var list = new ArrayList<Body>(1);
+
+		while (body != null) {
+			list.add(body);
+			body = body.nextBody();
+		}
+
+		return list;
 	}
 
 	public Map<String, OptionalString> cookies() {
@@ -231,21 +227,20 @@ public class HTTPRequest {
 		return cookies().getOrDefault(key, OptionalString.MISSING);
 	}
 
-	public Map<String, OptionalString> formData() {
+	public Map<String, OptionalString> formData() throws IOException {
 		if (!method.requestBody()) {
 			return query;
 		}
 
 		if (formData == null) {
-			try {
-				formData = mainBody().getPostData();
-			} catch (Exception ex) {
-				ex.printStackTrace();
-				formData = Map.of();
-			}
+			formData = body().getPostData();
 		}
 
 		return formData;
+	}
+
+	public OptionalString formData(String key) throws IOException {
+		return formData().getOrDefault(key, OptionalString.MISSING);
 	}
 
 	public Set<String> acceptedEncodings() {
@@ -260,10 +255,6 @@ public class HTTPRequest {
 		}
 
 		return acceptedEncodings;
-	}
-
-	public OptionalString formData(String key) {
-		return formData().getOrDefault(key, OptionalString.MISSING);
 	}
 
 	public String userAgent() {

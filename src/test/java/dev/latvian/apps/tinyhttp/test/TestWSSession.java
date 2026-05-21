@@ -17,13 +17,13 @@ public class TestWSSession extends WSSession<TestRequest> {
 
 	@Override
 	public void onOpen() {
-		System.out.println("WS " + id() + " Connected from " + req.connection());
-		send(Frame.text("Hello from " + id() + "! " + req.variables() + ", " + req.headers()));
+		System.out.println("WS " + key() + " Connected from " + req.connection());
+		send(Frame.text("Hello from " + key() + "! " + req.variables() + ", " + req.headers()));
 	}
 
 	@Override
 	public void onClose(CloseReason reason, @Nullable Throwable error) {
-		System.out.println("WS " + id() + " Closed: " + reason.status() + ", remote: " + reason.remote() + ", error: " + error);
+		System.out.println("WS " + key() + " Closed: " + reason.status() + ", remote: " + reason.remote() + ", error: " + error);
 
 		if (error != null) {
 			error.printStackTrace();
