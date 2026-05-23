@@ -6,6 +6,7 @@ import dev.latvian.apps.tinyhttp.OptionalString;
 import dev.latvian.apps.tinyhttp.error.InvalidPathException;
 import dev.latvian.apps.tinyhttp.http.body.Body;
 import dev.latvian.apps.tinyhttp.http.body.ChunkedBody;
+import dev.latvian.apps.tinyhttp.http.body.EmptyBody;
 import dev.latvian.apps.tinyhttp.http.body.ErrorBody;
 import dev.latvian.apps.tinyhttp.http.body.SimpleBody;
 import dev.latvian.apps.tinyhttp.http.response.HTTPPayload;
@@ -76,7 +77,7 @@ public class HTTPRequest {
 		long len = header("Content-Length").asLong(-1L);
 
 		if (len == 0L) {
-			this.body = null;
+			this.body = new EmptyBody(header("Content-Type").asString());
 		} else if (len > Integer.MAX_VALUE) {
 			this.body = new ErrorBody(() -> new ContentTooLargeError(len, Integer.MAX_VALUE));
 		} else if (len > 0L) {

@@ -11,7 +11,11 @@ public record SimpleBody(ByteChannelConnection connection, int contentLength, St
 	@Override
 	public ByteBuffer byteBuffer() throws IOException {
 		var bodyBuffer = ByteBuffer.allocate(contentLength);
-		connection().read(bodyBuffer);
+
+		if (contentLength > 0) {
+			connection.read(bodyBuffer);
+		}
+
 		return bodyBuffer.flip();
 	}
 
