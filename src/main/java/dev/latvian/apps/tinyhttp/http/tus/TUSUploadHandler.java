@@ -22,6 +22,7 @@ public interface TUSUploadHandler<REQ extends HTTPRequest, DATA> {
 		server.head(path, req -> handler.headResponse(req, handler.createData(req)));
 		server.headlessGet(path, req -> handler.getResponse(req, handler.createData(req)));
 		server.patch(path, req -> handler.patchResponse(req, handler.createData(req)));
+		server.put(path, req -> handler.patchResponse(req, handler.createData(req)));
 
 		if (handler.handleTermination()) {
 			server.delete(path, req -> handler.deleteResponse(req, handler.createData(req)));
