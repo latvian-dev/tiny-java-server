@@ -94,7 +94,8 @@ public class HTTPRequest {
 			}
 		} else if (header("Transfer-Encoding").asString().toLowerCase(Locale.ROOT).contains("chunked")) {
 			var ct = header("Content-Type").asString();
-			this.body = new ChunkedBody(connection, ct);
+			var sizeHint = header("X-Content-Length-Hint").asLong(0L);
+			this.body = new ChunkedBody(connection, ct, sizeHint <= Integer.MAX_VALUE ? (int) sizeHint : 0);
 		} else {
 			this.body = new ErrorBody("error:length_required", LengthRequiredError::new);
 		}

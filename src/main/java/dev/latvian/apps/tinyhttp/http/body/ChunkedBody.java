@@ -10,11 +10,13 @@ import java.nio.ByteBuffer;
 public final class ChunkedBody implements Body {
 	private final ByteChannelConnection connection;
 	private final String contentType;
+	private final int sizeHint;
 	private ByteBuffer byteBuffer;
 
-	public ChunkedBody(ByteChannelConnection connection, String contentType) {
+	public ChunkedBody(ByteChannelConnection connection, String contentType, int sizeHint) {
 		this.connection = connection;
 		this.contentType = contentType;
+		this.sizeHint = sizeHint;
 	}
 
 	@Override
@@ -27,19 +29,22 @@ public final class ChunkedBody implements Body {
 	}
 
 	private ByteBuffer nextByteBuffer() throws IOException {
-		int chunkSize = Integer.parseUnsignedInt(connection.readCRLF().split(";", 2)[0], 16);
-		var bytes = new ByteArrayOutputStream();
+		var chunkHeader = connection.readCRLF();
+		int chunkSize = Integer.parseUnsignedInt(chunkHeader.split(";", 2)[0], 16);
+		var bytes = new ByteArrayOutputStream(sizeHint > 0 ? sizeHint : chunkSize);
 
 		while (chunkSize > 0) {
-			connection.read(bytes, chunkSize);
-
+			var tempBuf = ByteBuffer.allocate(chunkSize);
+			connection.read(tempBuf);
+			bytes.write(tempBuf.array());
 			var dataEnd = connection.readCRLF();
 
 			if (!dataEnd.isEmpty()) {
 				throw new BadRequestError("Expected CRLF after chunk data, got '" + dataEnd + "'");
 			}
 
-			chunkSize = Integer.parseUnsignedInt(connection.readCRLF().split(";", 2)[0], 16);
+			chunkHeader = connection.readCRLF();
+			chunkSize = Integer.parseUnsignedInt(chunkHeader.split(";", 2)[0], 16);
 		}
 
 		var dataEnd = connection.readCRLF();
