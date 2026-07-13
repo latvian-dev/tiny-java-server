@@ -7,9 +7,26 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
-public record ChunkedBody(ByteChannelConnection connection, String contentType) implements Body {
+public final class ChunkedBody implements Body {
+	private final ByteChannelConnection connection;
+	private final String contentType;
+	private ByteBuffer byteBuffer;
+
+	public ChunkedBody(ByteChannelConnection connection, String contentType) {
+		this.connection = connection;
+		this.contentType = contentType;
+	}
+
 	@Override
 	public ByteBuffer byteBuffer() throws IOException {
+		if (byteBuffer == null || !byteBuffer.hasRemaining()) {
+			byteBuffer = nextByteBuffer();
+		}
+
+		return byteBuffer;
+	}
+
+	private ByteBuffer nextByteBuffer() throws IOException {
 		int chunkSize = Integer.parseUnsignedInt(connection.readCRLF().split(";", 2)[0], 16);
 		var bytes = new ByteArrayOutputStream();
 
@@ -32,5 +49,19 @@ public record ChunkedBody(ByteChannelConnection connection, String contentType) 
 		}
 
 		return ByteBuffer.wrap(bytes.toByteArray());
+	}
+
+	public ByteChannelConnection connection() {
+		return connection;
+	}
+
+	@Override
+	public String contentType() {
+		return contentType;
+	}
+
+	@Override
+	public String toString() {
+		return "chunked_body:" + contentType;
 	}
 }

@@ -35,6 +35,10 @@ public interface Body {
 
 	ByteBuffer byteBuffer() throws IOException;
 
+	default void byteBuffer(ByteBuffer to) throws IOException {
+		to.put(to.position(), byteBuffer(), 0, to.remaining());
+	}
+
 	default String contentType() {
 		return "";
 	}

@@ -79,16 +79,16 @@ public class HTTPRequest {
 		if (len == 0L) {
 			this.body = new EmptyBody(header("Content-Type").asString());
 		} else if (len > Integer.MAX_VALUE) {
-			this.body = new ErrorBody(() -> new ContentTooLargeError(len, Integer.MAX_VALUE));
+			this.body = new ErrorBody("error:content_too_large", () -> new ContentTooLargeError(len, Integer.MAX_VALUE));
 		} else if (len > 0L) {
 			var ct = header("Content-Type").asString();
 
 			if (ct.startsWith("multipart/form-data")) {
 				// https://developer.mozilla.org/en-US/docs/Web/HTTP/Methods/POST#multipart_form_submission
-				this.body = new ErrorBody(() -> new NotImplementedError("Multipart form data is currently not supported!"));
+				this.body = new ErrorBody("error:multipart_form_data_not_supported", () -> new NotImplementedError("Multipart form data is currently not supported!"));
 			} else if (ct.startsWith("multipart/")) {
 				// https://developer.mozilla.org/en-US/docs/Web/HTTP/Range_requests#multipart_ranges
-				this.body = new ErrorBody(() -> new NotImplementedError("Multipart byte data is currently not supported!"));
+				this.body = new ErrorBody("error:multipart_byte_data_not_supported", () -> new NotImplementedError("Multipart byte data is currently not supported!"));
 			} else {
 				this.body = new SimpleBody(connection, (int) len, ct);
 			}
@@ -96,7 +96,7 @@ public class HTTPRequest {
 			var ct = header("Content-Type").asString();
 			this.body = new ChunkedBody(connection, ct);
 		} else {
-			this.body = new ErrorBody(LengthRequiredError::new);
+			this.body = new ErrorBody("error:length_required", LengthRequiredError::new);
 		}
 
 		afterInit();

@@ -7,9 +7,16 @@ import java.nio.ByteBuffer;
 import java.util.Map;
 
 public record EmptyBody(String contentType) implements Body {
+	private static final ByteBuffer EMPTY_BUFFER = ByteBuffer.allocate(0);
+	private static final byte[] EMPTY_BYTES = new byte[0];
+
 	@Override
 	public ByteBuffer byteBuffer() {
-		return ByteBuffer.allocate(0);
+		return EMPTY_BUFFER;
+	}
+
+	@Override
+	public void byteBuffer(ByteBuffer to) {
 	}
 
 	@Override
@@ -24,7 +31,7 @@ public record EmptyBody(String contentType) implements Body {
 
 	@Override
 	public byte[] bytes() {
-		return new byte[0];
+		return EMPTY_BYTES;
 	}
 
 	@Override
