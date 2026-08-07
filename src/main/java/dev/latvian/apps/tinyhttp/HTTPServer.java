@@ -146,6 +146,10 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 		this.keepAliveTimeout = (int) duration.toSeconds();
 	}
 
+	public void setKeepWebSocketsAlive(Duration heartbeatInterval) {
+		this.keepWebSocketsAlive = heartbeatInterval.toMillis();
+	}
+
 	public void setKeepWebSocketsAlive(long heartbeatInterval) {
 		this.keepWebSocketsAlive = heartbeatInterval;
 	}
