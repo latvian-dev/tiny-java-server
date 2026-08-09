@@ -1,31 +1,41 @@
 package dev.latvian.apps.tinyhttp.http.body;
 
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 
 public final class UploadBody implements Body {
-	private final String content;
-	private final ByteBuffer byteBuffer;
+	private final byte[] bytes;
 	private final String contentType;
+	private ByteBuffer byteBuffer;
 
-	public UploadBody(String content, ByteBuffer byteBuffer, String contentType) {
-		this.content = content;
-		this.byteBuffer = byteBuffer;
+	public UploadBody(byte[] bytes, String contentType) {
+		this.bytes = bytes;
 		this.contentType = contentType;
 	}
 
 	@Override
 	public ByteBuffer byteBuffer() {
-		return byteBuffer.clear();
+		if (byteBuffer == null) {
+			byteBuffer = ByteBuffer.wrap(bytes);
+			return byteBuffer;
+		} else {
+			return byteBuffer.clear();
+		}
 	}
 
 	@Override
 	public String text() {
-		return content;
+		return new String(bytes, StandardCharsets.UTF_8);
+	}
+
+	@Override
+	public byte[] bytes() {
+		return bytes;
 	}
 
 	@Override
 	public String toString() {
-		return "upload_body:" + contentType;
+		return "upload_body:" + contentType + "; " + bytes.length + " bytes";
 	}
 
 	@Override
@@ -35,6 +45,6 @@ public final class UploadBody implements Body {
 
 	@Override
 	public int contentLength() {
-		return byteBuffer.limit();
+		return bytes.length;
 	}
 }

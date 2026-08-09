@@ -21,10 +21,12 @@ public final class MultipartFormDataBody extends SimpleBody {
 	@Override
 	public FormData formData() {
 		if (formData == null) {
+			var bytes = bytes();
+
 			var values = new ArrayList<NamedString>();
 			var uploads = new ArrayList<Upload>();
 			// https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Content-Disposition#html_posting_multipartform-data_content_type
-			var text = text();
+			var text = new String(bytes, StandardCharsets.ISO_8859_1);
 
 			if (text.startsWith("--" + boundary + "\r\n") && text.endsWith("\r\n--" + boundary + "--\r\n")) {
 				text = text.substring(boundary.length() + 4, text.length() - boundary.length() - 8);
@@ -65,8 +67,9 @@ public final class MultipartFormDataBody extends SimpleBody {
 
 						if (fileName != null) {
 							if (!fileName.isEmpty()) {
-								var buffer = StandardCharsets.UTF_8.encode(blockParts[1]);
-								uploads.add(new Upload(name, fileName, headers, new UploadBody(blockParts[1], buffer, contentType)));
+								var content = blockParts[1];
+								var blockBytes = content.getBytes(StandardCharsets.ISO_8859_1);
+								uploads.add(new Upload(name, fileName, headers, new UploadBody(blockBytes, contentType)));
 							}
 						} else {
 							values.add(NamedString.of(name, blockParts[1]));
@@ -83,6 +86,6 @@ public final class MultipartFormDataBody extends SimpleBody {
 
 	@Override
 	public String toString() {
-		return "multipart_body";
+		return "multipart_body; " + contentLength() + " bytes";
 	}
 }

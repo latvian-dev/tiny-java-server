@@ -39,7 +39,7 @@ public class SimpleBody implements Body {
 
 	@Override
 	public String toString() {
-		return "simple_body:" + contentType;
+		return "simple_body:" + contentType + "; " + contentLength() + " bytes";
 	}
 
 	public ByteChannelConnection connection() {

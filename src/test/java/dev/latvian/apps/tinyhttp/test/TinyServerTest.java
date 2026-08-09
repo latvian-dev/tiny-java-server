@@ -1,6 +1,7 @@
 package dev.latvian.apps.tinyhttp.test;
 
 import dev.latvian.apps.tinyhttp.HTTPConnection;
+import dev.latvian.apps.tinyhttp.http.body.Body;
 import dev.latvian.apps.tinyhttp.http.file.FileResponseHandler;
 import dev.latvian.apps.tinyhttp.http.response.HTTPResponse;
 import dev.latvian.apps.tinyhttp.http.response.error.client.UnauthorizedError;
@@ -139,7 +140,7 @@ public class TinyServerTest {
 			  <label for="lname">Last name:</label><br>
 			  <input type="text" id="lname" name="lname" value="Doe"><br><br>
 			  <label for="single_file">Single File:</label><br>
-			  <input type="file" name="single_file"><br>
+			  <input type="file" name="single_file" accept="image/*"><br>
 			  <br>
 			  <label for="multiple_files">Multiple Files:</label><br>
 			  <input type="file" name="multiple_files" multiple><br>
@@ -162,7 +163,32 @@ public class TinyServerTest {
 			System.out.println("- " + upload);
 		}
 
-		return HTTPResponse.redirect("/form");
+		System.out.println("Image:");
+		var img = formData.uploadAs("single_file", Body::image);
+
+		if (img != null) {
+			System.out.println(img.getWidth() + " x " + img.getHeight());
+		} else {
+			System.out.println("Null");
+		}
+
+		// printBytes(formData.uploadAs("single_file", Body::bytes));
+
+		return form(req);
+	}
+
+	private static void printBytes(byte[] bytes) {
+		System.out.println("Bytes %08X".formatted(Arrays.hashCode(bytes)));
+
+		for (int i = 0; i < bytes.length; i++) {
+			System.out.print("%02X ".formatted(bytes[i] & 0xFF));
+
+			if (i % 100 == 0) {
+				System.out.println();
+			}
+		}
+
+		System.out.println();
 	}
 
 	private static HTTPResponse upload(TestRequest req) throws Exception {

@@ -1,9 +1,11 @@
 package dev.latvian.apps.tinyhttp;
 
+import dev.latvian.apps.tinyhttp.http.body.Body;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Function;
 
 public record FormData(List<NamedString> values, List<Upload> uploads) {
 	public static final FormData EMPTY = new FormData(List.of(), List.of());
@@ -56,6 +58,17 @@ public record FormData(List<NamedString> values, List<Upload> uploads) {
 			if (upload.is(name)) {
 				return upload;
 			}
+		}
+
+		return null;
+	}
+
+	@Nullable
+	public <T> T uploadAs(String name, Function<Body, T> convert) {
+		var upload = upload(name);
+
+		if (upload != null) {
+			return convert.apply(upload.body());
 		}
 
 		return null;
