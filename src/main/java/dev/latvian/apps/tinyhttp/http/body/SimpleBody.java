@@ -1,11 +1,12 @@
 package dev.latvian.apps.tinyhttp.http.body;
 
+import dev.latvian.apps.tinyhttp.http.response.error.client.UnprocessableContentError;
 import dev.latvian.apps.tinyhttp.util.ByteChannelConnection;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
-public final class SimpleBody implements Body {
+public class SimpleBody implements Body {
 	private final ByteChannelConnection connection;
 	private final int contentLength;
 	private final String contentType;
@@ -18,22 +19,22 @@ public final class SimpleBody implements Body {
 	}
 
 	@Override
-	public ByteBuffer byteBuffer() throws IOException {
+	public ByteBuffer byteBuffer() {
 		if (byteBuffer == null) {
-			byteBuffer = nextByteBuffer();
+			byteBuffer = ByteBuffer.allocate(contentLength);
+
+			if (contentLength > 0) {
+				try {
+					connection.read(byteBuffer);
+				} catch (IOException ex) {
+					throw new UnprocessableContentError("Failed to read the request body", ex);
+				}
+			}
+
+			return byteBuffer.flip();
+		} else {
+			return byteBuffer.clear();
 		}
-
-		return byteBuffer;
-	}
-
-	public ByteBuffer nextByteBuffer() throws IOException {
-		var bodyBuffer = ByteBuffer.allocate(contentLength);
-
-		if (contentLength > 0) {
-			connection.read(bodyBuffer);
-		}
-
-		return bodyBuffer.flip();
 	}
 
 	@Override
@@ -45,12 +46,13 @@ public final class SimpleBody implements Body {
 		return connection;
 	}
 
-	public int contentLength() {
-		return contentLength;
-	}
-
 	@Override
 	public String contentType() {
 		return contentType;
+	}
+
+	@Override
+	public int contentLength() {
+		return contentLength;
 	}
 }

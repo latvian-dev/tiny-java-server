@@ -1,10 +1,9 @@
 package dev.latvian.apps.tinyhttp.http.body;
 
-import dev.latvian.apps.tinyhttp.OptionalString;
+import dev.latvian.apps.tinyhttp.FormData;
 
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
-import java.util.Map;
 
 public record EmptyBody(String contentType) implements Body {
 	private static final ByteBuffer EMPTY_BUFFER = ByteBuffer.allocate(0);
@@ -35,8 +34,8 @@ public record EmptyBody(String contentType) implements Body {
 	}
 
 	@Override
-	public Map<String, OptionalString> getPostData() {
-		return Map.of();
+	public FormData formData() {
+		return FormData.EMPTY;
 	}
 
 	@Override

@@ -57,7 +57,6 @@ public class TinyServerTest {
 		server.get("/error", TinyServerTest::error);
 
 		server.get("/form", TinyServerTest::form);
-		server.get("/form-submit", TinyServerTest::formSubmit);
 		server.post("/form-submit", TinyServerTest::formSubmit);
 		server.post("/upload", TinyServerTest::upload);
 
@@ -134,17 +133,35 @@ public class TinyServerTest {
 
 	private static HTTPResponse form(TestRequest req) {
 		return HTTPResponse.ok().html("""
-			<form action="/form-submit" method="get" accept-charset="utf-8">
+			<form action="/form-submit" method="POST" accept-charset="utf-8" enctype="multipart/form-data">
 			  <label for="fname">First name:</label><br>
 			  <input type="text" id="fname" name="fname" value="John"><br>
 			  <label for="lname">Last name:</label><br>
 			  <input type="text" id="lname" name="lname" value="Doe"><br><br>
+			  <label for="single_file">Single File:</label><br>
+			  <input type="file" name="single_file"><br>
+			  <br>
+			  <label for="multiple_files">Multiple Files:</label><br>
+			  <input type="file" name="multiple_files" multiple><br>
+			  <br>
 			  <input type="submit" value="Submit">
 			</form>""");
 	}
 
 	private static HTTPResponse formSubmit(TestRequest req) throws Exception {
-		System.out.println("Form data: " + req.formData());
+		System.out.println("Form data:");
+		var formData = req.formData();
+
+		for (var entry : formData.values()) {
+			System.out.println("- " + entry.name() + ": " + entry.value().asString());
+		}
+
+		System.out.println("Uploads:");
+
+		for (var upload : formData.uploads()) {
+			System.out.println("- " + upload);
+		}
+
 		return HTTPResponse.redirect("/form");
 	}
 

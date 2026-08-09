@@ -1,6 +1,7 @@
 package dev.latvian.apps.tinyhttp.http.body;
 
 import dev.latvian.apps.tinyhttp.http.response.error.client.BadRequestError;
+import dev.latvian.apps.tinyhttp.http.response.error.client.UnprocessableContentError;
 import dev.latvian.apps.tinyhttp.util.ByteChannelConnection;
 
 import java.io.ByteArrayOutputStream;
@@ -20,15 +21,19 @@ public final class ChunkedBody implements Body {
 	}
 
 	@Override
-	public ByteBuffer byteBuffer() throws IOException {
+	public ByteBuffer byteBuffer() {
 		if (byteBuffer == null || !byteBuffer.hasRemaining()) {
-			byteBuffer = nextByteBuffer();
+			try {
+				byteBuffer = readChunked();
+			} catch (IOException ex) {
+				throw new UnprocessableContentError("Failed to read chunked request body", ex);
+			}
 		}
 
 		return byteBuffer;
 	}
 
-	private ByteBuffer nextByteBuffer() throws IOException {
+	private ByteBuffer readChunked() throws IOException {
 		var chunkHeader = connection.readCRLF();
 		int chunkSize = Integer.parseUnsignedInt(chunkHeader.split(";", 2)[0], 16);
 		var bytes = new ByteArrayOutputStream(sizeHint > 0 ? sizeHint : chunkSize);

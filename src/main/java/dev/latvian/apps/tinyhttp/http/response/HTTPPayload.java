@@ -1,11 +1,11 @@
 package dev.latvian.apps.tinyhttp.http.response;
 
 import dev.latvian.apps.tinyhttp.HTTPConnection;
+import dev.latvian.apps.tinyhttp.NamedString;
 import dev.latvian.apps.tinyhttp.content.ByteContent;
 import dev.latvian.apps.tinyhttp.content.ResponseContent;
 import dev.latvian.apps.tinyhttp.http.HTTPRequest;
 import dev.latvian.apps.tinyhttp.http.HTTPUpgrade;
-import dev.latvian.apps.tinyhttp.http.Header;
 import dev.latvian.apps.tinyhttp.http.HeaderConsumer;
 import dev.latvian.apps.tinyhttp.http.response.encoding.ResponseContentEncoding;
 import org.jetbrains.annotations.Nullable;
@@ -30,14 +30,14 @@ public class HTTPPayload implements HeaderConsumer {
 	private final String serverName;
 	private final Instant serverTime;
 	private HTTPStatus status = HTTPStatus.NO_CONTENT;
-	private final List<Header> headers = new ArrayList<>();
+	private final List<NamedString> headers = new ArrayList<>();
 	private String cacheControl = "";
 	private String cors = "";
 	private Map<String, String> cookies;
 	private ResponseContent body = ByteContent.EMPTY;
 	private HTTPUpgrade<?> upgrade = null;
 	private List<ResponseContentEncoding> encodings;
-	private List<Header> responseHeaders = null;
+	private List<NamedString> responseHeaders = null;
 
 	public HTTPPayload(String serverName, Instant serverTime) {
 		this.serverName = serverName;
@@ -53,8 +53,8 @@ public class HTTPPayload implements HeaderConsumer {
 	}
 
 	@Override
-	public void addHeader(Header header) {
-		this.headers.removeIf(h -> h.is(header.key()));
+	public void addHeader(NamedString header) {
+		this.headers.removeIf(h -> h.is(header.name()));
 		this.headers.add(header);
 	}
 
@@ -135,50 +135,50 @@ public class HTTPPayload implements HeaderConsumer {
 		);
 
 		if (serverName != null && !serverName.isEmpty()) {
-			responseHeaders.add(new Header("Server", serverName));
+			responseHeaders.add(NamedString.of("Server", serverName));
 		}
 
-		responseHeaders.add(new Header("Date", HTTPPayload.DATE_TIME_FORMATTER.format(serverTime)));
+		responseHeaders.add(NamedString.of("Date", HTTPPayload.DATE_TIME_FORMATTER.format(serverTime)));
 
 		responseHeaders.addAll(headers);
 
 		if (cookies != null) {
 			for (var cookie : cookies.entrySet()) {
-				responseHeaders.add(new Header("Set-Cookie", cookie.getKey() + "=" + cookie.getValue()));
+				responseHeaders.add(NamedString.of("Set-Cookie", cookie.getKey() + "=" + cookie.getValue()));
 			}
 		}
 
 		if (!cacheControl.isEmpty()) {
-			responseHeaders.add(new Header("Cache-Control", cacheControl));
+			responseHeaders.add(NamedString.of("Cache-Control", cacheControl));
 		}
 
 		if (!cors.isEmpty()) {
-			responseHeaders.add(new Header("Access-Control-Allow-Origin", cors));
+			responseHeaders.add(NamedString.of("Access-Control-Allow-Origin", cors));
 		}
 
 		if (responseEncodings != null) {
-			responseHeaders.add(new Header("Content-Encoding", responseEncodings));
+			responseHeaders.add(NamedString.of("Content-Encoding", responseEncodings));
 		}
 
 		long contentLength = body.length();
 		var contentType = body.type();
 
 		if (contentLength >= 0L) {
-			responseHeaders.add(new Header("Content-Length", Long.toUnsignedString(contentLength)));
+			responseHeaders.add(NamedString.of("Content-Length", Long.toUnsignedString(contentLength)));
 		}
 
 		if (contentType != null && !contentType.isEmpty()) {
-			responseHeaders.add(new Header("Content-Type", contentType));
+			responseHeaders.add(NamedString.of("Content-Type", contentType));
 		}
 
 		if (upgrade != null && status == HTTPStatus.SWITCHING_PROTOCOLS) {
-			responseHeaders.add(new Header("Connection", "upgrade"));
-			responseHeaders.add(new Header("Upgrade", upgrade.protocol()));
+			responseHeaders.add(NamedString.of("Connection", "upgrade"));
+			responseHeaders.add(NamedString.of("Upgrade", upgrade.protocol()));
 		} else if (maxKeepAliveConnections > 0) {
-			responseHeaders.add(new Header("Connection", "keep-alive"));
-			responseHeaders.add(new Header("Keep-Alive", "timeout=" + keepAliveTimeout + ", max=" + maxKeepAliveConnections));
+			responseHeaders.add(NamedString.of("Connection", "keep-alive"));
+			responseHeaders.add(NamedString.of("Keep-Alive", "timeout=" + keepAliveTimeout + ", max=" + maxKeepAliveConnections));
 		} else {
-			responseHeaders.add(new Header("Connection", "close"));
+			responseHeaders.add(NamedString.of("Connection", "close"));
 		}
 	}
 
@@ -188,13 +188,13 @@ public class HTTPPayload implements HeaderConsumer {
 		int size = 2;
 
 		for (var h : responseHeaders) {
-			size += h.key().length() + 2 + h.value().asString().length() + 2;
+			size += h.name().length() + 2 + h.value().asString().length() + 2;
 		}
 
 		var buf = ByteBuffer.allocate(size);
 
 		for (var h : responseHeaders) {
-			buf.put(h.key().getBytes(StandardCharsets.US_ASCII));
+			buf.put(h.name().getBytes(StandardCharsets.US_ASCII));
 			buf.put(HSEP);
 			buf.put(h.value().asString().getBytes(StandardCharsets.US_ASCII));
 			buf.put(CRLF);

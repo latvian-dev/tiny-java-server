@@ -7,7 +7,6 @@ import dev.latvian.apps.tinyhttp.http.HTTPMethod;
 import dev.latvian.apps.tinyhttp.http.HTTPOptionsHandler;
 import dev.latvian.apps.tinyhttp.http.HTTPRequest;
 import dev.latvian.apps.tinyhttp.http.HTTPUpgrade;
-import dev.latvian.apps.tinyhttp.http.Header;
 import dev.latvian.apps.tinyhttp.http.response.HTTPPayload;
 import dev.latvian.apps.tinyhttp.http.response.HTTPResponse;
 import dev.latvian.apps.tinyhttp.http.response.HTTPStatus;
@@ -43,6 +42,7 @@ import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import java.util.zip.CRC32;
 
 public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegistry<REQ> {
 	private record PortRange(int min, int max) {
@@ -75,6 +75,7 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 	private long keepWebSocketsAlive;
 	private int boundPort;
 	private boolean shareOutputOperations;
+	private byte[] hashPrefix;
 
 	public HTTPServer(Supplier<REQ> requestFactory) {
 		this.requestFactory = requestFactory;
@@ -96,6 +97,7 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 		this.keepWebSocketsAlive = 20_000L;
 		this.boundPort = -1;
 		this.shareOutputOperations = false;
+		this.hashPrefix = new byte[0];
 	}
 
 	public void setServerName(String name) {
@@ -156,6 +158,14 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 
 	public void setShareOutputOperations(boolean shareOutputOperations) {
 		this.shareOutputOperations = shareOutputOperations;
+	}
+
+	public void setHashPrefix(byte[] bytes) {
+		this.hashPrefix = bytes.clone();
+	}
+
+	public void setHashPrefix(String string) {
+		this.hashPrefix = string.getBytes(StandardCharsets.UTF_8);
 	}
 
 	public boolean isRunning() {
@@ -345,21 +355,21 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 					path = path.substring(0, path.length() - 1);
 				}
 
-				Map<String, OptionalString> query = queryString.isEmpty() ? Map.of() : new HashMap<>();
+				List<NamedString> query = queryString.isEmpty() ? List.of() : new ArrayList<>();
 
 				if (!queryString.isEmpty()) {
 					for (var part : queryString.split("&")) {
 						var parts = part.split("=", 2);
 
 						if (parts.length == 2) {
-							query.put(URLDecoder.decode(parts[0], StandardCharsets.UTF_8), OptionalString.of(URLDecoder.decode(parts[1], StandardCharsets.UTF_8)));
+							query.add(NamedString.of(URLDecoder.decode(parts[0], StandardCharsets.UTF_8), URLDecoder.decode(parts[1], StandardCharsets.UTF_8)));
 						} else {
-							query.put(URLDecoder.decode(parts[0], StandardCharsets.UTF_8), OptionalString.EMPTY);
+							query.add(NamedString.empty(URLDecoder.decode(parts[0], StandardCharsets.UTF_8)));
 						}
 					}
 				}
 
-				var headers = new ArrayList<Header>();
+				var headers = new ArrayList<NamedString>();
 
 				while (true) {
 					var line = connection.readCRLF();
@@ -371,7 +381,7 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 					var parts = line.split(":", 2);
 
 					if (parts.length == 2) {
-						var header = new Header(parts[0].trim(), parts[1].trim());
+						var header = NamedString.of(parts[0].trim(), parts[1].trim());
 						headers.add(header);
 
 						if (header.is("Connection") && header.value().asString().equalsIgnoreCase("keep-alive")) {
@@ -596,5 +606,13 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 	@Nullable
 	public OutputOperations getSharedOutputOperations() {
 		return shareOutputOperations ? outputOperations : null;
+	}
+
+	public int hash32(byte[] input) {
+		var c = new CRC32();
+		c.update(hashPrefix);
+		c.update(input);
+		int hash = (int) c.getValue();
+		return hash == 0 ? 1 : hash;
 	}
 }

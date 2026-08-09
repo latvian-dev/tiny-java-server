@@ -1,13 +1,17 @@
 package dev.latvian.apps.tinyhttp.http;
 
+import dev.latvian.apps.tinyhttp.FormData;
 import dev.latvian.apps.tinyhttp.HTTPConnection;
 import dev.latvian.apps.tinyhttp.HTTPServer;
+import dev.latvian.apps.tinyhttp.NamedString;
 import dev.latvian.apps.tinyhttp.OptionalString;
+import dev.latvian.apps.tinyhttp.Upload;
 import dev.latvian.apps.tinyhttp.error.InvalidPathException;
 import dev.latvian.apps.tinyhttp.http.body.Body;
 import dev.latvian.apps.tinyhttp.http.body.ChunkedBody;
 import dev.latvian.apps.tinyhttp.http.body.EmptyBody;
 import dev.latvian.apps.tinyhttp.http.body.ErrorBody;
+import dev.latvian.apps.tinyhttp.http.body.MultipartFormDataBody;
 import dev.latvian.apps.tinyhttp.http.body.SimpleBody;
 import dev.latvian.apps.tinyhttp.http.response.HTTPPayload;
 import dev.latvian.apps.tinyhttp.http.response.HTTPResponse;
@@ -19,7 +23,7 @@ import dev.latvian.apps.tinyhttp.util.CompiledPath;
 import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.Nullable;
 
-import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -39,10 +43,10 @@ public class HTTPRequest {
 	private String[] pathParts = new String[0];
 	private Map<String, OptionalString> variables = Map.of();
 	private String queryString = "";
-	private Map<String, OptionalString> query = Map.of();
-	private List<Header> headers = List.of();
-	private Map<String, OptionalString> cookies = null;
-	private Map<String, OptionalString> formData = null;
+	private List<NamedString> query = List.of();
+	private List<NamedString> headers = List.of();
+	private List<NamedString> cookies = null;
+	private FormData formData = null;
 	private Set<String> acceptedEncodings = null;
 	private Body body;
 
@@ -54,7 +58,7 @@ public class HTTPRequest {
 	}
 
 	@ApiStatus.Internal
-	public final void init(String path, String[] pathParts, CompiledPath compiledPath, List<Header> headers, String queryString, Map<String, OptionalString> query) {
+	public final void init(String path, String[] pathParts, CompiledPath compiledPath, List<NamedString> headers, String queryString, List<NamedString> query) {
 		this.path = path;
 		this.pathParts = pathParts;
 
@@ -73,6 +77,7 @@ public class HTTPRequest {
 		this.headers = headers;
 		this.queryString = queryString;
 		this.query = query;
+		// this.uploads = List.of();
 
 		long len = header("Content-Length").asLong(-1L);
 
@@ -82,13 +87,23 @@ public class HTTPRequest {
 			this.body = new ErrorBody("error:content_too_large", () -> new ContentTooLargeError(len, Integer.MAX_VALUE));
 		} else if (len > 0L) {
 			var ct = header("Content-Type").asString();
+			var ctParts = ct.split(";");
+			ctParts[0] = ctParts[0].toLowerCase(Locale.ROOT);
 
-			if (ct.startsWith("multipart/form-data")) {
-				// https://developer.mozilla.org/en-US/docs/Web/HTTP/Methods/POST#multipart_form_submission
-				this.body = new ErrorBody("error:multipart_form_data_not_supported", () -> new NotImplementedError("Multipart form data is currently not supported!"));
-			} else if (ct.startsWith("multipart/")) {
+			for (int i = 1; i < ctParts.length; i++) {
+				ctParts[i] = ctParts[i].trim();
+			}
+
+			if (ctParts[0].startsWith("multipart/form-data")) {
+				if (ctParts.length == 2 && ctParts[1].startsWith("boundary=") && ctParts[1].length() > 9) {
+					var boundary = ctParts[1].substring(9);
+					this.body = new MultipartFormDataBody(connection, (int) len, ct, boundary);
+				} else {
+					this.body = new ErrorBody("error:multipart_form_data_boundary_missing", () -> new NotImplementedError("Multipart form data boundary is missing"));
+				}
+			} else if (ctParts[0].startsWith("multipart/")) {
 				// https://developer.mozilla.org/en-US/docs/Web/HTTP/Range_requests#multipart_ranges
-				this.body = new ErrorBody("error:multipart_byte_data_not_supported", () -> new NotImplementedError("Multipart byte data is currently not supported!"));
+				this.body = new ErrorBody("error:multipart_byte_data_not_supported", () -> new NotImplementedError("Multipart byte data is currently not supported"));
 			} else {
 				this.body = new SimpleBody(connection, (int) len, ct);
 			}
@@ -140,22 +155,28 @@ public class HTTPRequest {
 		return queryString;
 	}
 
-	public Map<String, OptionalString> query() {
-		return query;
+	public List<NamedString> query() {
+		return Collections.unmodifiableList(query);
 	}
 
-	public OptionalString query(String key) {
-		return query.isEmpty() ? OptionalString.MISSING : query.getOrDefault(key, OptionalString.MISSING);
+	public OptionalString query(String name) {
+		for (var ns : query) {
+			if (ns.is(name)) {
+				return ns.value();
+			}
+		}
+
+		return OptionalString.MISSING;
 	}
 
-	public List<Header> headers() {
+	public List<NamedString> headers() {
 		return Collections.unmodifiableList(headers);
 	}
 
 	public OptionalString header(String name) {
-		for (var header : headers) {
-			if (header.is(name)) {
-				return header.value();
+		for (var ns : headers) {
+			if (ns.is(name)) {
+				return ns.value();
 			}
 		}
 
@@ -184,30 +205,16 @@ public class HTTPRequest {
 	}
 
 	public Body body() {
-		var b = body;
-
-		if (b == null) {
+		if (body == null) {
 			throw new UnprocessableContentError("This request has no body");
 		}
 
-		body = b.nextBody();
-		return b;
+		return body;
 	}
 
-	public List<Body> allBodies() {
-		var list = new ArrayList<Body>(1);
-
-		while (body != null) {
-			list.add(body);
-			body = body.nextBody();
-		}
-
-		return list;
-	}
-
-	public Map<String, OptionalString> cookies() {
+	public List<NamedString> cookies() {
 		if (cookies == null) {
-			cookies = new HashMap<>(4);
+			cookies = new ArrayList<>(4);
 
 			for (var header : headers) {
 				if (header.is("Cookie")) {
@@ -215,7 +222,9 @@ public class HTTPRequest {
 						var parts = part.split("=", 2);
 
 						if (parts.length == 2) {
-							cookies.put(parts[0], OptionalString.of(parts[1]));
+							cookies.add(NamedString.of(parts[0], parts[1]));
+						} else {
+							cookies.add(NamedString.empty(parts[0]));
 						}
 					}
 				}
@@ -226,23 +235,41 @@ public class HTTPRequest {
 	}
 
 	public OptionalString cookie(String key) {
-		return cookies().getOrDefault(key, OptionalString.MISSING);
-	}
-
-	public Map<String, OptionalString> formData() throws IOException {
-		if (!method.requestBody()) {
-			return query;
+		for (var ns : cookies()) {
+			if (ns.is(key)) {
+				return ns.value();
+			}
 		}
 
+		return OptionalString.MISSING;
+	}
+
+	public FormData formData() {
 		if (formData == null) {
-			formData = body().getPostData();
+			if (method.requestBody()) {
+				formData = body().formData();
+			} else {
+				formData = new FormData(query(), List.of());
+			}
 		}
 
 		return formData;
 	}
 
-	public OptionalString formData(String key) throws IOException {
-		return formData().getOrDefault(key, OptionalString.MISSING);
+	public OptionalString formData(String name) {
+		return formData().value(name);
+	}
+
+	public List<Upload> formUploads() {
+		return formData().uploads();
+	}
+
+	public List<Upload> formUploads(String name) {
+		return formData().uploads(name);
+	}
+
+	public Upload formUpload(String name) {
+		return formData().upload(name);
 	}
 
 	public Set<String> acceptedEncodings() {
@@ -269,6 +296,10 @@ public class HTTPRequest {
 
 	public String ipv6() {
 		return header("CF-Connecting-IPv6").asString();
+	}
+
+	public int ipHash() {
+		return connection.server().hash32(ip().getBytes(StandardCharsets.UTF_8));
 	}
 
 	public String country() {
@@ -313,5 +344,8 @@ public class HTTPRequest {
 	}
 
 	public void afterResponse(HTTPPayload payload, HTTPResponse response, @Nullable HTTPHandler<?> handler, @Nullable Throwable error) {
+		if (error != null) {
+			error.printStackTrace();
+		}
 	}
 }

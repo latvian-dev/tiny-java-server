@@ -16,27 +16,30 @@ public class TestRequest extends HTTPRequest {
 		payload.setCacheControl("no-cache, no-store, must-revalidate, max-age=0");
 
 		System.out.println(method() + " /" + fullPath() + " " + payload.getStatus() + ", " + (Instant.now().toEpochMilli() - startTime().toEpochMilli()) + " ms from " + connection());
-		System.out.println("- Headers:");
 
-		for (var h : headers()) {
-			System.out.println("  - " + h.key() + ": " + h.value());
+		if (query("log").asBoolean()) {
+			System.out.println("- Headers:");
+
+			for (var h : headers()) {
+				System.out.println("  - " + h.name() + ": " + h.value().asString());
+			}
+
+			System.out.println("- Query:");
+
+			for (var e : query()) {
+				System.out.println("  - " + e.name() + ": " + e.value().asString());
+			}
+
+			System.out.println("- Cookies:");
+
+			for (var e : cookies()) {
+				System.out.println("  - " + e.name() + ": " + e.value().asString());
+			}
+
+			System.out.println("- Accept Encodings: " + acceptedEncodings());
+			System.out.println("- Error: " + error);
+			System.out.println();
 		}
-
-		System.out.println("- Query:");
-
-		for (var e : query().entrySet()) {
-			System.out.println("  - " + e.getKey() + ": " + e.getValue());
-		}
-
-		System.out.println("- Cookies:");
-
-		for (var e : cookies().entrySet()) {
-			System.out.println("  - " + e.getKey() + ": " + e.getValue());
-		}
-
-		System.out.println("- Accept Encodings: " + acceptedEncodings());
-		System.out.println("- Error: " + error);
-		System.out.println();
 
 		if (error != null) {
 			return (error instanceof HTTPError e ? e.getStatus() : HTTPStatus.INTERNAL_ERROR).text(error.toString());

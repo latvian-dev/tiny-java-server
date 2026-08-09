@@ -1,13 +1,15 @@
 package dev.latvian.apps.tinyhttp.http;
 
+import dev.latvian.apps.tinyhttp.NamedString;
+
 import java.util.Date;
 
 @FunctionalInterface
 public interface HeaderConsumer {
-	void addHeader(Header header);
+	void addHeader(NamedString header);
 
 	default void addHeader(String header, Object value) {
-		addHeader(new Header(header, String.valueOf(value)));
+		addHeader(NamedString.of(header, String.valueOf(value)));
 	}
 
 	default void addUnsignedHeader(String header, int value) {
@@ -19,6 +21,6 @@ public interface HeaderConsumer {
 	}
 
 	default void addDateHeader(String header, Date value) {
-		addHeader(new Header(header, String.valueOf(value)));
+		addHeader(NamedString.of(header, String.valueOf(value)));
 	}
 }

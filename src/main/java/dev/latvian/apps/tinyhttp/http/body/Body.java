@@ -1,7 +1,7 @@
 package dev.latvian.apps.tinyhttp.http.body;
 
-import dev.latvian.apps.tinyhttp.OptionalString;
-import org.jetbrains.annotations.Nullable;
+import dev.latvian.apps.tinyhttp.FormData;
+import dev.latvian.apps.tinyhttp.NamedString;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -9,9 +9,8 @@ import java.io.OutputStream;
 import java.net.URLDecoder;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
-import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.Map;
+import java.util.ArrayList;
+import java.util.List;
 
 public interface Body {
 	static void appendQuotedString(StringBuilder builder, String value) {
@@ -33,14 +32,18 @@ public interface Body {
 		builder.append('"');
 	}
 
-	ByteBuffer byteBuffer() throws IOException;
+	ByteBuffer byteBuffer();
 
-	default void byteBuffer(ByteBuffer to) throws IOException {
+	default void byteBuffer(ByteBuffer to) {
 		to.put(to.position(), byteBuffer(), 0, to.remaining());
 	}
 
 	default String contentType() {
 		return "";
+	}
+
+	default int contentLength() {
+		return -1;
 	}
 
 	default long transferTo(OutputStream out) throws IOException {
@@ -49,11 +52,11 @@ public interface Body {
 		return bytes.length;
 	}
 
-	default String text() throws IOException {
+	default String text() {
 		return StandardCharsets.UTF_8.decode(byteBuffer()).toString();
 	}
 
-	default byte[] bytes() throws IOException {
+	default byte[] bytes() {
 		var buf = byteBuffer();
 
 		try {
@@ -69,14 +72,14 @@ public interface Body {
 		}
 	}
 
-	default Map<String, OptionalString> getPostData() throws IOException {
+	default FormData formData() {
 		var text = text();
 
 		if (text.isEmpty()) {
-			return Collections.emptyMap();
+			return FormData.EMPTY;
 		}
 
-		var map = new LinkedHashMap<String, OptionalString>(4);
+		var values = new ArrayList<NamedString>(4);
 
 		for (var s : text.split("&")) {
 			var p = s.split("=", 2);
@@ -86,9 +89,9 @@ public interface Body {
 
 				if (!k.isEmpty()) {
 					if (p.length == 2) {
-						map.put(k, OptionalString.of(URLDecoder.decode(p[1], StandardCharsets.UTF_8)));
+						values.add(NamedString.of(k, URLDecoder.decode(p[1], StandardCharsets.UTF_8)));
 					} else {
-						map.put(k, OptionalString.EMPTY);
+						values.add(NamedString.empty(k));
 					}
 				}
 			} catch (Exception ex) {
@@ -96,12 +99,7 @@ public interface Body {
 			}
 		}
 
-		return map;
-	}
-
-	@Nullable
-	default Body nextBody() {
-		return null;
+		return values.isEmpty() ? FormData.EMPTY : new FormData(values, List.of());
 	}
 }
 
