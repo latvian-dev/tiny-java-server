@@ -159,6 +159,16 @@ public class HTTPRequest {
 		return Collections.unmodifiableList(query);
 	}
 
+	public boolean hasQuery(String name) {
+		for (var ns : query) {
+			if (ns.is(name)) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
 	public OptionalString query(String name) {
 		for (var ns : query) {
 			if (ns.is(name)) {
@@ -171,6 +181,16 @@ public class HTTPRequest {
 
 	public List<NamedString> headers() {
 		return Collections.unmodifiableList(headers);
+	}
+
+	public boolean hasHeader(String name) {
+		for (var ns : headers) {
+			if (ns.is(name)) {
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	public OptionalString header(String name) {
@@ -232,6 +252,16 @@ public class HTTPRequest {
 		}
 
 		return cookies;
+	}
+
+	public boolean hasCookie(String name) {
+		for (var ns : cookies()) {
+			if (ns.is(name)) {
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	public OptionalString cookie(String key) {

@@ -11,6 +11,20 @@ public record Upload(String name, String fileName, List<NamedString> headers, Bo
 		return "Upload[" + name + "=" + fileName + ", " + body.contentType() + ", " + body.contentLength() + " bytes]";
 	}
 
+	public boolean is(String name) {
+		return this.name.equalsIgnoreCase(name);
+	}
+
+	public boolean hasHeader(String name) {
+		for (var ns : headers) {
+			if (ns.is(name)) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
 	public OptionalString header(String name) {
 		for (var ns : headers) {
 			if (ns.is(name)) {
