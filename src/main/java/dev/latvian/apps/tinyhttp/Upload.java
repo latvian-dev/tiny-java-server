@@ -1,11 +1,11 @@
 package dev.latvian.apps.tinyhttp;
 
-import dev.latvian.apps.tinyhttp.http.body.Body;
+import dev.latvian.apps.tinyhttp.http.body.UploadBody;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.List;
 
-public record Upload(String name, String fileName, List<NamedString> headers, Body body) {
+public record Upload(String name, String fileName, List<NamedString> headers, UploadBody body) {
 	@Override
 	public @NotNull String toString() {
 		return "Upload[" + name + "=" + fileName + ", " + body.contentType() + ", " + body.contentLength() + " bytes]";

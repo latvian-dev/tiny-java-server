@@ -1,7 +1,9 @@
 package dev.latvian.apps.tinyhttp.http.body;
 
 import dev.latvian.apps.tinyhttp.FormData;
+import dev.latvian.apps.tinyhttp.http.response.error.client.UnprocessableContentError;
 
+import java.awt.image.BufferedImage;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
 
@@ -36,6 +38,11 @@ public record EmptyBody(String contentType) implements Body {
 	@Override
 	public FormData formData() {
 		return FormData.EMPTY;
+	}
+
+	@Override
+	public BufferedImage image() {
+		throw new UnprocessableContentError("Not an image");
 	}
 
 	@Override

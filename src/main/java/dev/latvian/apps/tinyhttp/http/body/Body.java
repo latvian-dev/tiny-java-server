@@ -2,7 +2,11 @@ package dev.latvian.apps.tinyhttp.http.body;
 
 import dev.latvian.apps.tinyhttp.FormData;
 import dev.latvian.apps.tinyhttp.NamedString;
+import dev.latvian.apps.tinyhttp.http.response.error.client.UnprocessableContentError;
 
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -100,6 +104,14 @@ public interface Body {
 		}
 
 		return values.isEmpty() ? FormData.EMPTY : new FormData(values, List.of());
+	}
+
+	default BufferedImage image() {
+		try (var in = new ByteArrayInputStream(bytes())) {
+			return ImageIO.read(in);
+		} catch (Exception ex) {
+			throw new UnprocessableContentError("Failed to read the request body as an image", ex);
+		}
 	}
 }
 

@@ -12,6 +12,16 @@ public record ErrorBody(String errorType, Supplier<HTTPError> error) implements 
 	}
 
 	@Override
+	public String text() {
+		throw error.get();
+	}
+
+	@Override
+	public byte[] bytes() {
+		throw error.get();
+	}
+
+	@Override
 	public String toString() {
 		return errorType;
 	}

@@ -66,7 +66,7 @@ public final class MultipartFormDataBody extends SimpleBody {
 						if (fileName != null) {
 							if (!fileName.isEmpty()) {
 								var buffer = StandardCharsets.UTF_8.encode(blockParts[1]);
-								uploads.add(new Upload(name, fileName, headers, new ByteBody(buffer, contentType)));
+								uploads.add(new Upload(name, fileName, headers, new UploadBody(blockParts[1], buffer, contentType)));
 							}
 						} else {
 							values.add(NamedString.of(name, blockParts[1]));
