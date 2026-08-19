@@ -39,8 +39,8 @@ public record FrameInfo(
 		return new FrameInfo(opcode, mask, fin, rsv1, rsv2, rsv3, maskKey, size);
 	}
 
-	public void applyMask(byte[] payload) {
-		if (payload.length == 0 || maskKey == 0) {
+	public void applyMask(byte[] payload, int off, int len) {
+		if (!mask || maskKey == 0 || off >= len || payload.length == 0) {
 			return;
 		}
 
@@ -50,8 +50,24 @@ public record FrameInfo(
 		m[2] = (byte) (maskKey >> 8);
 		m[3] = (byte) maskKey;
 
-		for (int i = 0; i < payload.length; i++) {
+		for (int i = off; i < len; i++) {
 			payload[i] = (byte) (payload[i] ^ m[i & 3]);
+		}
+	}
+
+	public void applyMask(ByteBuffer payload, int off, int len) {
+		if (!mask || maskKey == 0 || off >= len || !payload.hasRemaining()) {
+			return;
+		}
+
+		byte[] m = new byte[4];
+		m[0] = (byte) (maskKey >> 24);
+		m[1] = (byte) (maskKey >> 16);
+		m[2] = (byte) (maskKey >> 8);
+		m[3] = (byte) maskKey;
+
+		for (int i = 0; i < len; i++) {
+			payload.put(i + off, (byte) (payload.get(i + off) ^ m[i & 3]));
 		}
 	}
 

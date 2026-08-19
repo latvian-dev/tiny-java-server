@@ -4,7 +4,6 @@ import dev.latvian.apps.tinyhttp.http.HTTPRequest;
 import dev.latvian.apps.tinyhttp.util.OutputOperations;
 import org.jetbrains.annotations.Nullable;
 
-import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 
 public record Frame(FrameInfo info, byte[] payload) {
@@ -57,12 +56,6 @@ public record Frame(FrameInfo info, byte[] payload) {
 		return this;
 	}
 
-	public void applyMask() {
-		if (info.mask() && !info.maskZero() && info.size() > 0) {
-			info.applyMask(payload);
-		}
-	}
-
 	public <REQ extends HTTPRequest> boolean write(WSSession<REQ> session, OutputOperations operations) {
 		if (session.isClosed()) {
 			return false;
@@ -70,16 +63,18 @@ public record Frame(FrameInfo info, byte[] payload) {
 
 		try {
 			int len = info.bytes();
-			var buf = operations.allocate(len);
-			info.put(buf);
-			buf.flip();
-			session.connection.write(buf);
+			int payloadSize = info.size();
 
-			if (info.size() > 0L) {
-				applyMask();
-				session.connection.write(ByteBuffer.wrap(payload));
+			var buf = operations.allocate(len + payloadSize);
+			info.put(buf);
+
+			if (payloadSize > 0) {
+				buf.put(payload);
+				info.applyMask(buf, len, payloadSize);
 			}
 
+			buf.flip();
+			session.connection.write(buf);
 			return true;
 		} catch (Throwable ex) {
 			session.handleException(ex);

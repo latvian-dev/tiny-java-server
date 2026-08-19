@@ -28,8 +28,8 @@ class WSRXThread extends Thread {
 				} else {
 					var payload = new byte[info.size()];
 					session.connection.readBytes(payload);
+					info.applyMask(payload, 0, payload.length);
 					frame = new Frame(info, payload);
-					frame.applyMask();
 				}
 
 				switch (info.opcode()) {

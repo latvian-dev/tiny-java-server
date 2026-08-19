@@ -17,6 +17,7 @@ public class OutputOperations implements Runnable {
 	public final ReentrantLock lock;
 	public final LinkedList<OutputOperation> queue;
 	private ByteBuffer tempBuffer;
+	private ByteBuffer tempDirectBuffer;
 	Thread thread;
 
 	public OutputOperations(HTTPServer<?> server, String name) {
@@ -25,6 +26,7 @@ public class OutputOperations implements Runnable {
 		this.lock = new ReentrantLock();
 		this.queue = new LinkedList<>();
 		this.tempBuffer = ByteBuffer.allocate(64);
+		this.tempDirectBuffer = ByteBuffer.allocate(1);
 	}
 
 	public void queue(OutputOperation operation) {
@@ -92,8 +94,20 @@ public class OutputOperations implements Runnable {
 			tempBuffer = ByteBuffer.allocate(len);
 		} else {
 			tempBuffer.clear();
+			tempBuffer.limit(len);
 		}
 
 		return tempBuffer;
+	}
+
+	public ByteBuffer allocateDirect(int len) {
+		if (len > tempDirectBuffer.capacity()) {
+			tempDirectBuffer = ByteBuffer.allocateDirect(len);
+		} else {
+			tempDirectBuffer.clear();
+			tempDirectBuffer.limit(len);
+		}
+
+		return tempDirectBuffer;
 	}
 }

@@ -12,11 +12,13 @@ public class ByteChannelConnection {
 	private static final byte N_BYTE = (byte) '\n';
 
 	protected final ByteChannel channel;
-	private final ByteBuffer temp;
+	private ByteBuffer temp;
+	private byte[] tempBytes;
 
 	public ByteChannelConnection(ByteChannel channel) {
 		this.channel = channel;
 		this.temp = ByteBuffer.allocate(8);
+		this.tempBytes = new byte[8];
 	}
 
 	public ByteChannel getChannel() {
@@ -38,20 +40,47 @@ public class ByteChannelConnection {
 	}
 
 	private ByteBuffer readTemp(int len) throws IOException {
-		var buf = temp.clear().limit(len);
-		read(buf);
-		return buf;
+		if (len > temp.capacity()) {
+			temp = ByteBuffer.allocate(len);
+		} else {
+			temp.clear().limit(len);
+		}
+
+		read(temp);
+		return temp;
+	}
+
+	private byte[] tempBytes(int len) {
+		if (len > tempBytes.length) {
+			tempBytes = new byte[len];
+		}
+
+		return tempBytes;
 	}
 
 	public void readBytes(byte[] bytes, int off, int len) throws IOException {
-		for (var i = 0; i < len; i++) {
-			// TODO: Allow to read multiple bytes at once
-			bytes[off + i] = readByte();
+		while (len > 0) {
+			int count = Math.min(len, 8192);
+			var temp = readTemp(count).flip();
+			temp.get(bytes, off, count);
+			off += count;
+			len -= count;
 		}
 	}
 
 	public void readBytes(byte[] bytes) throws IOException {
 		readBytes(bytes, 0, bytes.length);
+	}
+
+	public void transferTo(int len, OutputStream out) throws IOException {
+		while (len > 0) {
+			int count = Math.min(len, 8192);
+			var bytes = tempBytes(count);
+			var temp = readTemp(count).flip();
+			temp.get(bytes, 0, count);
+			out.write(bytes, 0, count);
+			len -= count;
+		}
 	}
 
 	public byte readByte() throws IOException {
@@ -107,12 +136,5 @@ public class ByteChannelConnection {
 		var bytes = new ByteArrayOutputStream(16);
 		readCRLF(bytes);
 		return bytes.toByteArray();
-	}
-
-	public void read(OutputStream out, int len) throws IOException {
-		for (var i = 0; i < len; i++) {
-			// TODO: Allow to read multiple bytes at once
-			out.write(readByte());
-		}
 	}
 }
