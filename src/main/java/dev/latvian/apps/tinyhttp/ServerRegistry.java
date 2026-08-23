@@ -27,6 +27,12 @@ public interface ServerRegistry<REQ extends HTTPRequest> {
 	default void options(String path, HTTPOptionsHandler<REQ> handler) {
 	}
 
+	default void acceptRanges(String path, String ranges) {
+		options(path, (req, headers) -> {
+			headers.addHeader("Accept-Ranges", ranges);
+		});
+	}
+
 	default void head(String path, HTTPHandler<REQ> handler) {
 		http(HTTPMethod.HEAD, path, handler);
 	}
@@ -38,6 +44,10 @@ public interface ServerRegistry<REQ extends HTTPRequest> {
 	default void get(String path, HTTPHandler<REQ> handler) {
 		head(path, handler);
 		headlessGet(path, handler);
+	}
+
+	default void query(String path, HTTPHandler<REQ> handler) {
+		http(HTTPMethod.QUERY, path, handler);
 	}
 
 	default void post(String path, HTTPHandler<REQ> handler) {

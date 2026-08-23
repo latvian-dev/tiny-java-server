@@ -7,16 +7,18 @@ import dev.latvian.apps.tinyhttp.content.MimeType;
 import dev.latvian.apps.tinyhttp.content.ResponseContent;
 import dev.latvian.apps.tinyhttp.http.HTTPUpgrade;
 import dev.latvian.apps.tinyhttp.http.body.Body;
-import dev.latvian.apps.tinyhttp.http.response.encoding.DeflateResponseContentEncoding;
-import dev.latvian.apps.tinyhttp.http.response.encoding.GZIPResponseContentEncoding;
-import dev.latvian.apps.tinyhttp.http.response.encoding.ResponseContentEncoding;
+import dev.latvian.apps.tinyhttp.http.response.error.client.NotFoundError;
+import dev.latvian.apps.tinyhttp.http.response.error.server.InternalError;
 
 import javax.imageio.ImageIO;
-import java.awt.image.BufferedImage;
+import java.awt.image.RenderedImage;
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.time.temporal.TemporalAccessor;
 import java.util.Map;
 import java.util.function.UnaryOperator;
 
@@ -125,20 +127,24 @@ public interface HTTPResponse {
 		return new ContentResponse(this, new ByteContent(String.valueOf(string).getBytes(StandardCharsets.UTF_8), type));
 	}
 
-	default HTTPResponse content(Path file, String overrideType) {
-		return content(new FileContent(file, overrideType));
+	default HTTPResponse content(Path file, String overrideType) throws IOException {
+		if (Files.exists(file) && Files.isRegularFile(file) && Files.isReadable(file)) {
+			return content(new FileContent(file, overrideType));
+		} else {
+			throw new NotFoundError();
+		}
 	}
 
-	default HTTPResponse content(Path file) {
+	default HTTPResponse content(Path file) throws IOException {
 		return content(file, "");
 	}
 
 	default HTTPResponse html(String text) {
-		return content(text, MimeType.HTML).gzip();
+		return content(text, MimeType.HTML).compress();
 	}
 
 	default HTTPResponse text(String text) {
-		return content(text, MimeType.TEXT).gzip();
+		return content(text, MimeType.TEXT).compress();
 	}
 
 	default HTTPResponse text(Iterable<String> text) {
@@ -146,43 +152,39 @@ public interface HTTPResponse {
 	}
 
 	default HTTPResponse json(String json) {
-		return content(json, MimeType.JSON).gzip();
+		return content(json, MimeType.JSON).compress();
 	}
 
-	default HTTPResponse png(BufferedImage img) {
+	default HTTPResponse png(RenderedImage img) {
 		return content(new LazyContent(() -> {
 			try {
 				var bytes = new ByteArrayOutputStream();
 				ImageIO.write(img, "png", bytes);
 				return new ByteContent(bytes.toByteArray(), MimeType.PNG);
 			} catch (Exception ex) {
-				return ByteContent.EMPTY;
+				throw new InternalError(ex);
 			}
-		})).gzip();
+		}));
 	}
 
-	default HTTPResponse jpeg(BufferedImage img) {
+	default HTTPResponse jpeg(RenderedImage img) {
 		return content(new LazyContent(() -> {
 			try {
 				var bytes = new ByteArrayOutputStream();
 				ImageIO.write(img, "jpeg", bytes);
 				return new ByteContent(bytes.toByteArray(), MimeType.JPEG);
 			} catch (Exception ex) {
-				return ByteContent.EMPTY;
+				throw new InternalError(ex);
 			}
-		})).gzip();
+		}));
 	}
 
-	default HTTPResponse encoding(ResponseContentEncoding encoding) {
-		return new EncodingResponse(this, encoding);
+	default HTTPResponse encode(String method) {
+		return new EncodeResponse(this, method);
 	}
 
-	default HTTPResponse gzip() {
-		return encoding(GZIPResponseContentEncoding.INSTANCE);
-	}
-
-	default HTTPResponse deflate() {
-		return encoding(DeflateResponseContentEncoding.INSTANCE);
+	default HTTPResponse compress() {
+		return encode("");
 	}
 
 	default HTTPResponse download(String fileName) {
@@ -190,5 +192,33 @@ public interface HTTPResponse {
 		builder.append("attachment; filename=");
 		Body.appendQuotedString(builder, fileName);
 		return header("Content-Disposition", builder.toString());
+	}
+
+	default HTTPResponse acceptRanges(String ranges) {
+		return new AcceptRangesResponse(this, ranges);
+	}
+
+	default HTTPResponse acceptByteRanges() {
+		return acceptRanges("bytes");
+	}
+
+	default HTTPResponse contentRange(int start, int end, int total) {
+		return header("Content-Range", "bytes " + start + "-" + end + "/" + total);
+	}
+
+	default HTTPResponse fullContentRange(int total) {
+		return header("Content-Range", "bytes */" + total);
+	}
+
+	default HTTPResponse strongETag(String etag) {
+		return header("ETag", "\"" + etag + "\"");
+	}
+
+	default HTTPResponse weakETag(String etag) {
+		return header("ETag", "W/\"" + etag + "\"");
+	}
+
+	default HTTPResponse lastModified(TemporalAccessor time) {
+		return header("Last-Modified", HTTPPayload.DATE_TIME_FORMATTER.format(time));
 	}
 }

@@ -1,6 +1,7 @@
 package dev.latvian.apps.tinyhttp.http.body;
 
 import dev.latvian.apps.tinyhttp.http.response.error.client.UnprocessableContentError;
+import dev.latvian.apps.tinyhttp.util.ByteBufferUtils;
 import dev.latvian.apps.tinyhttp.util.ByteChannelConnection;
 
 import java.io.IOException;
@@ -21,7 +22,7 @@ public class SimpleBody implements Body {
 	@Override
 	public ByteBuffer byteBuffer() {
 		if (byteBuffer == null) {
-			byteBuffer = ByteBuffer.allocate(contentLength);
+			byteBuffer = ByteBufferUtils.allocate(contentLength, false);
 
 			if (contentLength > 0) {
 				try {

@@ -36,7 +36,19 @@ public class DynamicFileHandler<REQ extends HTTPRequest> implements HTTPHandler<
 
 		if (path.startsWith(directory) && Files.exists(path) && Files.isReadable(path)) {
 			if (Files.isRegularFile(path)) {
-				return responseHandler.apply(HTTPResponse.ok().content(path), false, path);
+				var res = HTTPResponse.ok().content(path);
+
+				try {
+					var lastModified = Files.getLastModifiedTime(path);
+
+					if (lastModified != null) {
+						var instant = lastModified.toInstant();
+						res = res.lastModified(instant).strongETag("%08x%04x".formatted(instant.getEpochSecond(), instant.getNano()));
+					}
+				} catch (Exception ignored) {
+				}
+
+				return responseHandler.apply(res, false, path);
 			} else if (autoIndex && Files.isDirectory(path)) {
 				return responseHandler.apply(FileIndexHandler.index("/" + req.path(), directory, path), true, path);
 			}

@@ -1,6 +1,7 @@
 package dev.latvian.apps.tinyhttp.content;
 
 public interface MimeType {
+	String OCTET_STREAM = "application/octet-stream";
 	String TEXT = "text/plain; charset=utf-8";
 	String HTML = "text/html; charset=utf-8";
 	String JSON = "application/json; charset=utf-8";

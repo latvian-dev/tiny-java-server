@@ -4,6 +4,7 @@ import dev.latvian.apps.tinyhttp.http.HTTPRequest;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Unmodifiable;
 
+import java.nio.ByteBuffer;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Spliterator;
@@ -24,85 +25,39 @@ public interface WSHandler<REQ extends HTTPRequest, WSS extends WSSession<REQ>> 
 		return sessions().spliterator();
 	}
 
-	default void broadcast(Frame frame) {
+	default void broadcast(Supplier<Frame> frame) {
 		var s = sessions();
 
 		if (!s.isEmpty()) {
+			var f = frame.get();
+
 			for (var session : s) {
-				session.send(frame);
+				session.send(f.copy());
 			}
 		}
 	}
 
 	default void broadcastText(String payload) {
-		var s = sessions();
-
-		if (!s.isEmpty()) {
-			var p = Frame.text(payload);
-
-			for (var session : s) {
-				session.send(p);
-			}
-		}
+		broadcast(() -> Frame.text(payload));
 	}
 
 	default void broadcastText(Supplier<String> payload) {
-		var s = sessions();
-
-		if (!s.isEmpty()) {
-			var p = Frame.text(payload.get());
-
-			for (var session : s) {
-				session.send(p);
-			}
-		}
+		broadcast(() -> Frame.text(payload.get()));
 	}
 
-	default void broadcastBinary(byte[] payload) {
-		var s = sessions();
-
-		if (!s.isEmpty()) {
-			var p = Frame.binary(payload);
-
-			for (var session : s) {
-				session.send(p);
-			}
-		}
+	default void broadcastBinary(ByteBuffer payload) {
+		broadcast(() -> Frame.binary(payload));
 	}
 
-	default void broadcastBinary(Supplier<byte[]> payload) {
-		var s = sessions();
-
-		if (!s.isEmpty()) {
-			var p = Frame.binary(payload.get());
-
-			for (var session : s) {
-				session.send(p);
-			}
-		}
+	default void broadcastBinary(Supplier<ByteBuffer> payload) {
+		broadcast(() -> Frame.binary(payload.get()));
 	}
 
-	default void broadcastPing(byte[] payload) {
-		var s = sessions();
-
-		if (!s.isEmpty()) {
-			var p = Frame.ping(payload);
-
-			for (var session : s) {
-				session.send(p);
-			}
-		}
+	default void broadcastPing(ByteBuffer payload) {
+		broadcast(() -> Frame.ping(payload));
 	}
 
-	default void broadcastPing(Supplier<byte[]> payload) {
-		var s = sessions();
-
-		if (!s.isEmpty()) {
-			var p = Frame.ping(payload.get());
-
-			for (var session : s) {
-				session.send(p);
-			}
-		}
+	default void broadcastPing(Supplier<ByteBuffer> payload) {
+		broadcast(() -> Frame.ping(payload.get()));
 	}
 }

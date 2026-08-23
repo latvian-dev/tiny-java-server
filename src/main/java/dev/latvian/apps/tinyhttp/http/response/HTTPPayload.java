@@ -2,17 +2,16 @@ package dev.latvian.apps.tinyhttp.http.response;
 
 import dev.latvian.apps.tinyhttp.HTTPConnection;
 import dev.latvian.apps.tinyhttp.NamedString;
-import dev.latvian.apps.tinyhttp.content.ByteContent;
+import dev.latvian.apps.tinyhttp.content.MimeType;
+import dev.latvian.apps.tinyhttp.content.RequestRange;
 import dev.latvian.apps.tinyhttp.content.ResponseContent;
 import dev.latvian.apps.tinyhttp.http.HTTPRequest;
 import dev.latvian.apps.tinyhttp.http.HTTPUpgrade;
 import dev.latvian.apps.tinyhttp.http.HeaderConsumer;
-import dev.latvian.apps.tinyhttp.http.response.encoding.ResponseContentEncoding;
+import dev.latvian.apps.tinyhttp.util.ByteBufferUtils;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
@@ -24,8 +23,6 @@ import java.util.Map;
 
 public class HTTPPayload implements HeaderConsumer {
 	public static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("EEE, dd MMM yyyy HH:mm:ss z", Locale.ENGLISH).withZone(ZoneId.of("GMT"));
-	private static final byte[] CRLF = "\r\n".getBytes(StandardCharsets.UTF_8);
-	private static final byte[] HSEP = ": ".getBytes(StandardCharsets.UTF_8);
 
 	private final String serverName;
 	private final Instant serverTime;
@@ -34,10 +31,10 @@ public class HTTPPayload implements HeaderConsumer {
 	private String cacheControl = "";
 	private String cors = "";
 	private Map<String, String> cookies;
-	private ResponseContent body = ByteContent.EMPTY;
+	private ResponseContent body = null;
 	private HTTPUpgrade<?> upgrade = null;
-	private List<ResponseContentEncoding> encodings;
-	private List<NamedString> responseHeaders = null;
+	private String encode = null;
+	private String acceptRanges = "";
 
 	public HTTPPayload(String serverName, Instant serverTime) {
 		this.serverName = serverName;
@@ -87,12 +84,12 @@ public class HTTPPayload implements HeaderConsumer {
 		return upgrade;
 	}
 
-	public void addEncoding(ResponseContentEncoding encoding) {
-		if (encodings == null) {
-			encodings = new ArrayList<>(1);
-		}
+	public void setEncode(String encode) {
+		this.encode = encode;
+	}
 
-		encodings.add(encoding);
+	public void setAcceptRanges(String acceptRanges) {
+		this.acceptRanges = acceptRanges;
 	}
 
 	public void setResponse(HTTPResponse response) {
@@ -100,38 +97,34 @@ public class HTTPPayload implements HeaderConsumer {
 		response.build(this);
 	}
 
-	public void process(HTTPRequest req, int keepAliveTimeout, int maxKeepAliveConnections) throws IOException {
-		String responseEncodings = null;
-		boolean hasBodyData = body.hasData();
+	public void write(HTTPRequest req, int keepAliveTimeout, int maxKeepAliveConnections, HTTPConnection<?> connection, boolean writeBody) throws IOException {
+		String responseEncoding = null;
 
-		if (encodings != null && hasBodyData) {
-			var sb = new StringBuilder();
+		var actualBody = body;
 
-			for (var encoding : encodings) {
+		if (encode != null && actualBody != null) {
+			var accepted = req.acceptedEncodings();
+
+			for (var encoding : connection.server().getEncodingMethods()) {
 				var name = encoding.name();
 
-				if (req.acceptedEncodings().contains(name)) {
-					body = encoding.encode(body);
-
-					if (!sb.isEmpty()) {
-						sb.append(", ");
-					}
-
-					sb.append(name);
+				if (!encode.isEmpty() && !encode.equals(name)) {
+					continue;
 				}
-			}
 
-			if (!sb.isEmpty()) {
-				responseEncodings = sb.toString();
+				if (accepted.contains(name)) {
+					actualBody = encoding.encode(actualBody);
+					responseEncoding = name;
+					break;
+				}
 			}
 		}
 
-		responseHeaders = new ArrayList<>(headers.size()
+		var responseHeaders = new ArrayList<NamedString>(headers.size()
 			+ (cookies == null ? 0 : cookies.size())
 			+ (cacheControl.isEmpty() ? 0 : 1)
 			+ (cors.isEmpty() ? 0 : 1)
-			+ (hasBodyData ? 2 : 1)
-			+ (responseEncodings == null ? 0 : 1)
+			+ (responseEncoding == null ? 0 : 1)
 		);
 
 		if (serverName != null && !serverName.isEmpty()) {
@@ -156,19 +149,12 @@ public class HTTPPayload implements HeaderConsumer {
 			responseHeaders.add(NamedString.of("Access-Control-Allow-Origin", cors));
 		}
 
-		if (responseEncodings != null) {
-			responseHeaders.add(NamedString.of("Content-Encoding", responseEncodings));
+		if (responseEncoding != null) {
+			responseHeaders.add(NamedString.of("Content-Encoding", responseEncoding));
 		}
 
-		long contentLength = body.length();
-		var contentType = body.type();
-
-		if (contentLength >= 0L) {
-			responseHeaders.add(NamedString.of("Content-Length", Long.toUnsignedString(contentLength)));
-		}
-
-		if (contentType != null && !contentType.isEmpty()) {
-			responseHeaders.add(NamedString.of("Content-Type", contentType));
+		if (!acceptRanges.isEmpty()) {
+			responseHeaders.add(NamedString.of("Accept-Ranges", acceptRanges));
 		}
 
 		if (upgrade != null && status == HTTPStatus.SWITCHING_PROTOCOLS) {
@@ -180,33 +166,91 @@ public class HTTPPayload implements HeaderConsumer {
 		} else {
 			responseHeaders.add(NamedString.of("Connection", "close"));
 		}
-	}
 
-	public void write(HTTPConnection<?> connection, boolean writeBody) throws IOException {
-		connection.write(status.responseBuffer().duplicate());
+		long contentLength = actualBody == null ? -1L : actualBody.length();
+		var contentType = actualBody == null ? MimeType.OCTET_STREAM : actualBody.actualType();
+		var requestedRanges = List.<RequestRange>of();
 
-		int size = 2;
+		if (status == HTTPStatus.OK && contentLength >= 0L && !acceptRanges.isEmpty()) {
+			var range = req.header("Range").asString();
 
-		for (var h : responseHeaders) {
-			size += h.name().length() + 2 + h.value().asString().length() + 2;
+			if (range.startsWith(acceptRanges + "=")) {
+				var strArr = range.substring(acceptRanges.length() + 1).split(",");
+				requestedRanges = new ArrayList<>(strArr.length);
+
+				for (var str : strArr) {
+					requestedRanges.add(RequestRange.parse(str.trim(), contentLength));
+				}
+			}
 		}
 
-		var buf = ByteBuffer.allocate(size);
+		var crlf = ByteBufferUtils.CRLF.duplicate();
 
-		for (var h : responseHeaders) {
-			buf.put(h.name().getBytes(StandardCharsets.US_ASCII));
-			buf.put(HSEP);
-			buf.put(h.value().asString().getBytes(StandardCharsets.US_ASCII));
-			buf.put(CRLF);
+		connection.write((!requestedRanges.isEmpty() ? HTTPStatus.PARTIAL_CONTENT : status).responseBuffer().duplicate());
+		connection.writeHeaders(responseHeaders);
+		responseHeaders.clear();
+
+		if (contentLength >= 0L) {
+			if (requestedRanges.isEmpty()) {
+				responseHeaders.add(NamedString.of("Content-Length", Long.toUnsignedString(contentLength)));
+				responseHeaders.add(NamedString.of("Content-Type", contentType));
+			} else if (requestedRanges.size() == 1) {
+				var r = requestedRanges.getFirst();
+				actualBody = actualBody.withRange(r);
+				responseHeaders.add(NamedString.of("Content-Length", Long.toUnsignedString(r.length())));
+				responseHeaders.add(NamedString.of("Content-Range", "bytes " + Long.toUnsignedString(r.start()) + "-" + Long.toUnsignedString(r.end()) + "/" + Long.toUnsignedString(contentLength)));
+				responseHeaders.add(NamedString.of("Content-Type", contentType));
+			} else {
+				var dash2 = ByteBufferUtils.DASH2.duplicate();
+				var boundary = ByteBufferUtils.BOUNDARY.duplicate();
+
+				var bodyLength = 6L + boundary.limit();
+
+				for (var r : requestedRanges) {
+					bodyLength += 10L;
+					bodyLength += boundary.limit();
+					responseHeaders.add(NamedString.of("Content-Type", contentType));
+					responseHeaders.add(NamedString.of("Content-Range", "bytes " + Long.toUnsignedString(r.start()) + "-" + Long.toUnsignedString(r.end()) + "/" + Long.toUnsignedString(contentLength)));
+					bodyLength += HTTPConnection.headerSize(responseHeaders);
+					bodyLength += r.length();
+					responseHeaders.clear();
+				}
+
+				responseHeaders.add(NamedString.of("Content-Type", "multipart/byteranges; boundary=" + ByteBufferUtils.BOUNDARY_STRING));
+				responseHeaders.add(NamedString.of("Content-Length", Long.toUnsignedString(bodyLength)));
+				connection.writeHeaders(responseHeaders);
+				responseHeaders.clear();
+
+				if (writeBody) {
+					for (var r : requestedRanges) {
+						connection.write(crlf.rewind());
+						connection.write(dash2.rewind());
+						connection.write(boundary.rewind());
+						connection.write(crlf.rewind());
+						responseHeaders.add(NamedString.of("Content-Type", contentType));
+						responseHeaders.add(NamedString.of("Content-Range", "bytes " + Long.toUnsignedString(r.start()) + "-" + Long.toUnsignedString(r.end()) + "/" + Long.toUnsignedString(contentLength)));
+						connection.writeHeaders(responseHeaders);
+						connection.write(crlf.rewind());
+						actualBody.withRange(r).transferTo(connection);
+						connection.write(crlf.rewind());
+						responseHeaders.clear();
+					}
+
+					connection.write(dash2.rewind());
+					connection.write(boundary.rewind());
+					connection.write(dash2.rewind());
+					connection.write(crlf.rewind());
+				}
+
+				return;
+			}
 		}
 
-		buf.put(CRLF);
-		buf.flip();
+		connection.writeHeaders(responseHeaders);
+		connection.write(crlf);
 
-		connection.write(buf);
-
-		if (writeBody && body.hasData()) {
-			body.transferTo(connection);
+		if (writeBody && actualBody != null) {
+			actualBody.transferTo(connection);
 		}
 	}
 }

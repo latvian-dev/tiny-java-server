@@ -10,6 +10,7 @@ import dev.latvian.apps.tinyhttp.http.HTTPUpgrade;
 import dev.latvian.apps.tinyhttp.http.response.HTTPPayload;
 import dev.latvian.apps.tinyhttp.http.response.HTTPResponse;
 import dev.latvian.apps.tinyhttp.http.response.HTTPStatus;
+import dev.latvian.apps.tinyhttp.http.response.encoding.ResponseContentEncoding;
 import dev.latvian.apps.tinyhttp.http.response.error.HTTPError;
 import dev.latvian.apps.tinyhttp.util.CompiledPath;
 import dev.latvian.apps.tinyhttp.util.HTTPOptionsPathHandler;
@@ -76,6 +77,7 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 	private int boundPort;
 	private boolean shareOutputOperations;
 	private byte[] hashPrefix;
+	private List<ResponseContentEncoding> encodingMethods;
 
 	public HTTPServer(Supplier<REQ> requestFactory) {
 		this.requestFactory = requestFactory;
@@ -87,8 +89,8 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 		this.dynamicOptionsHandlers = new HashMap<>(0);
 		this.connections = new IdentityHashMap<>();
 		this.publicConnections = Collections.unmodifiableSet(connections.keySet());
-		this.serverName = "HTTPServer-" + System.currentTimeMillis();
 
+		this.serverName = "HTTPServer-" + System.currentTimeMillis();
 		this.ports = PortRange.DEFAULT;
 		this.daemon = false;
 		this.bufferSize = 0;
@@ -98,6 +100,7 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 		this.boundPort = -1;
 		this.shareOutputOperations = false;
 		this.hashPrefix = new byte[0];
+		this.encodingMethods = ResponseContentEncoding.defaultEncodingMethods();
 	}
 
 	public void setServerName(String name) {
@@ -166,6 +169,10 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 
 	public void setHashPrefix(String string) {
 		this.hashPrefix = string.getBytes(StandardCharsets.UTF_8);
+	}
+
+	public void setEncodingMethods(List<ResponseContentEncoding> list) {
+		this.encodingMethods = List.copyOf(list);
 	}
 
 	public boolean isRunning() {
@@ -462,8 +469,7 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 					allowed.remove(HTTPMethod.OPTIONS);
 					builder.setStatus(HTTPStatus.NO_CONTENT);
 					builder.addHeader("Allow", allowed.stream().map(HTTPMethod::getName).collect(Collectors.joining(", ")));
-					builder.process(req, keepAliveTimeout, keepAlive ? maxKeepAliveConnections : 0);
-					builder.write(connection, writeBody);
+					builder.write(req, keepAliveTimeout, keepAlive ? maxKeepAliveConnections : 0, connection, writeBody);
 				} else if (method == HTTPMethod.TRACE) {
 					// no-op
 				} else if (method == HTTPMethod.CONNECT) {
@@ -517,8 +523,7 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 						builder = createBuilder(req, null);
 					}
 
-					builder.process(req, keepAliveTimeout, keepAlive ? maxKeepAliveConnections : 0);
-					builder.write(connection, writeBody);
+					builder.write(req, keepAliveTimeout, keepAlive ? maxKeepAliveConnections : 0, connection, writeBody);
 
 					connection.upgrade = (HTTPUpgrade) builder.getUpgrade();
 
@@ -614,5 +619,9 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 		c.update(input);
 		int hash = (int) c.getValue();
 		return hash == 0 ? 1 : hash;
+	}
+
+	public List<ResponseContentEncoding> getEncodingMethods() {
+		return encodingMethods;
 	}
 }

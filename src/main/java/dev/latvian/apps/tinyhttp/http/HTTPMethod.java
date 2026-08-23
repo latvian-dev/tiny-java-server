@@ -3,6 +3,7 @@ package dev.latvian.apps.tinyhttp.http;
 public enum HTTPMethod {
 	HEAD("HEAD", false, false),
 	GET("GET", false, true),
+	QUERY("QUERY", true, true),
 	POST("POST", true, true),
 	PUT("PUT", true, true),
 	PATCH("PATCH", true, true),
@@ -15,6 +16,7 @@ public enum HTTPMethod {
 		return switch (method) {
 			case "head", "HEAD" -> HEAD;
 			case "get", "GET" -> GET;
+			case "query", "QUERY" -> QUERY;
 			case "post", "POST" -> POST;
 			case "put", "PUT" -> PUT;
 			case "patch", "PATCH" -> PATCH;

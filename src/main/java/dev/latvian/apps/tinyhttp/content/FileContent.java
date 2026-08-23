@@ -1,21 +1,28 @@
 package dev.latvian.apps.tinyhttp.content;
 
 import dev.latvian.apps.tinyhttp.HTTPConnection;
+import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
 import java.io.OutputStream;
-import java.nio.ByteBuffer;
+import java.net.http.HttpRequest;
+import java.nio.channels.Channels;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 
-public record FileContent(Path file, String overrideType) implements ResponseContent {
+public record FileContent(Path file, long length, String overrideType, @Nullable RequestRange range) implements ResponseContent {
+	public FileContent(Path file, long length, String overrideType) {
+		this(file, length, overrideType, null);
+	}
+
+	public FileContent(Path file, String overrideType) throws IOException {
+		this(file, Files.size(file), overrideType);
+	}
+
 	@Override
-	public long length() {
-		try {
-			return Files.size(file);
-		} catch (IOException ignore) {
-			return -1L;
-		}
+	public long rangeLength() {
+		return range == null ? length : range.length();
 	}
 
 	@Override
@@ -33,29 +40,59 @@ public record FileContent(Path file, String overrideType) implements ResponseCon
 
 	@Override
 	public void write(OutputStream out) throws IOException {
-		Files.copy(file, out);
-	}
+		if (range == null) {
+			Files.copy(file, out);
+		} else {
+			var start = range.start();
+			var length = range.length();
 
-	@Override
-	public byte[] toBytes() throws IOException {
-		return Files.readAllBytes(file);
-	}
-
-	@Override
-	public void transferTo(HTTPConnection<?> connection) throws IOException {
-		try (var fileChannel = Files.newByteChannel(file)) {
-			var buf = ByteBuffer.allocate(8192);
-
-			while (fileChannel.read(buf) != -1) {
-				buf.flip();
-				connection.write(buf);
-				buf.clear();
+			try (var channel = length < this.length ? Files.newByteChannel(file, StandardOpenOption.READ).truncate(start + length) : Files.newByteChannel(file, StandardOpenOption.READ);
+			     var stream = Channels.newInputStream(channel)
+			) {
+				stream.skipNBytes(start);
+				stream.transferTo(out);
 			}
 		}
 	}
 
 	@Override
-	public boolean hasData() {
-		return Files.exists(file) && Files.isRegularFile(file) && Files.isReadable(file);
+	public byte[] toBytes() throws IOException {
+		if (range == null) {
+			return Files.readAllBytes(file);
+		} else {
+			return ResponseContent.super.toBytes();
+		}
+	}
+
+	@Override
+	public void transferTo(HTTPConnection<?> connection) throws IOException {
+		if (range == null) {
+			connection.write(file);
+		} else {
+			var length = range.length();
+			connection.write0(file, range.start(), length, length < this.length);
+		}
+	}
+
+	@Override
+	public HttpRequest.BodyPublisher bodyPublisher() throws IOException {
+		if (range == null) {
+			return HttpRequest.BodyPublishers.ofFile(file);
+		} else {
+			return HttpRequest.BodyPublishers.ofInputStream(() -> {
+				try {
+					var channel = Files.newByteChannel(file, StandardOpenOption.READ).truncate(range.end() + 1L);
+					channel.position(range.start());
+					return Channels.newInputStream(channel);
+				} catch (Exception ex) {
+					throw new RuntimeException("Failed to create new file channel", ex);
+				}
+			});
+		}
+	}
+
+	@Override
+	public ResponseContent withRange(RequestRange range) {
+		return new FileContent(file, length, overrideType, range);
 	}
 }

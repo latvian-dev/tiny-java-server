@@ -39,9 +39,7 @@ public final class ChunkedBody implements Body {
 		var bytes = new ByteArrayOutputStream(sizeHint > 0 ? sizeHint : chunkSize);
 
 		while (chunkSize > 0) {
-			var tempBuf = ByteBuffer.allocate(chunkSize);
-			connection.read(tempBuf);
-			bytes.write(tempBuf.array());
+			connection.read(chunkSize, bytes);
 			var dataEnd = connection.readCRLF();
 
 			if (!dataEnd.isEmpty()) {

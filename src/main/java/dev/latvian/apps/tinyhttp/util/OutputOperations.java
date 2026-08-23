@@ -16,7 +16,7 @@ public class OutputOperations implements Runnable {
 	public final String name;
 	public final ReentrantLock lock;
 	public final LinkedList<OutputOperation> queue;
-	private ByteBuffer tempBuffer;
+	private ByteBuffer tempHeapBuffer;
 	private ByteBuffer tempDirectBuffer;
 	Thread thread;
 
@@ -25,8 +25,8 @@ public class OutputOperations implements Runnable {
 		this.name = name;
 		this.lock = new ReentrantLock();
 		this.queue = new LinkedList<>();
-		this.tempBuffer = ByteBuffer.allocate(64);
-		this.tempDirectBuffer = ByteBuffer.allocate(1);
+		this.tempHeapBuffer = ByteBufferUtils.allocate(64, false);
+		this.tempDirectBuffer = ByteBufferUtils.allocate(1, true);
 	}
 
 	public void queue(OutputOperation operation) {
@@ -89,25 +89,11 @@ public class OutputOperations implements Runnable {
 		// System.out.println("Closing thread " + name);
 	}
 
-	public ByteBuffer allocate(int len) {
-		if (len > tempBuffer.capacity()) {
-			tempBuffer = ByteBuffer.allocate(len);
-		} else {
-			tempBuffer.clear();
-			tempBuffer.limit(len);
-		}
-
-		return tempBuffer;
+	public ByteBuffer allocateHeap(int len) {
+		return (tempHeapBuffer = ByteBufferUtils.grow(tempHeapBuffer, len, false));
 	}
 
 	public ByteBuffer allocateDirect(int len) {
-		if (len > tempDirectBuffer.capacity()) {
-			tempDirectBuffer = ByteBuffer.allocateDirect(len);
-		} else {
-			tempDirectBuffer.clear();
-			tempDirectBuffer.limit(len);
-		}
-
-		return tempDirectBuffer;
+		return (tempDirectBuffer = ByteBufferUtils.grow(tempDirectBuffer, len, true));
 	}
 }

@@ -7,15 +7,15 @@ import java.time.Duration;
 
 @FunctionalInterface
 public interface FileResponseHandler {
-	record Cache(Duration duration, Duration styleAndScriptDuration, boolean gzip) implements FileResponseHandler {
+	record Cache(Duration duration, Duration styleAndScriptDuration, boolean compress) implements FileResponseHandler {
 		@Override
 		public HTTPResponse apply(HTTPResponse response, boolean directory, Path path) {
 			if (!directory) {
 				var n = path.getFileName().toString();
 				response = response.publicCache(n.endsWith(".css") || n.endsWith(".js") ? styleAndScriptDuration : duration);
 
-				if (gzip) {
-					response = response.gzip();
+				if (compress) {
+					response = response.compress();
 				}
 			}
 
@@ -26,8 +26,8 @@ public interface FileResponseHandler {
 	FileResponseHandler CACHE_5_MIN = cache(Duration.ofMinutes(5L));
 	FileResponseHandler CACHE_1_HOUR = cache(Duration.ofHours(1L));
 
-	static FileResponseHandler cache(Duration duration, Duration styleAndScriptDuration, boolean gzip) {
-		return new Cache(duration, styleAndScriptDuration, gzip);
+	static FileResponseHandler cache(Duration duration, Duration styleAndScriptDuration, boolean compress) {
+		return new Cache(duration, styleAndScriptDuration, compress);
 	}
 
 	static FileResponseHandler cache(Duration duration) {

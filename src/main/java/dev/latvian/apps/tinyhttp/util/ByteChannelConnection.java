@@ -1,11 +1,17 @@
 package dev.latvian.apps.tinyhttp.util;
 
+import dev.latvian.apps.tinyhttp.NamedString;
+
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.nio.channels.ByteChannel;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
+import java.util.Collection;
 
 public class ByteChannelConnection {
 	private static final byte R_BYTE = (byte) '\r';
@@ -17,12 +23,20 @@ public class ByteChannelConnection {
 
 	public ByteChannelConnection(ByteChannel channel) {
 		this.channel = channel;
-		this.temp = ByteBuffer.allocate(8);
+		this.temp = ByteBufferUtils.allocate(8, false);
 		this.tempBytes = new byte[8];
 	}
 
 	public ByteChannel getChannel() {
 		return channel;
+	}
+
+	private byte[] tempBytes(int len) {
+		if (len > tempBytes.length) {
+			tempBytes = new byte[len];
+		}
+
+		return tempBytes;
 	}
 
 	public void read(ByteBuffer buffer) throws IOException {
@@ -39,30 +53,71 @@ public class ByteChannelConnection {
 		while (buffer.hasRemaining());
 	}
 
-	private ByteBuffer readTemp(int len) throws IOException {
-		if (len > temp.capacity()) {
-			temp = ByteBuffer.allocate(len);
-		} else {
-			temp.clear().limit(len);
+	public void write(Path path) throws IOException {
+		write0(path, 0L, Files.size(path), false);
+	}
+
+	public void write(Path path, long start, long length) throws IOException {
+		write0(path, start, length, length < Files.size(path));
+	}
+
+	public void write0(Path path, long start, long length, boolean truncate) throws IOException {
+		try (var fileChannel = truncate ? Files.newByteChannel(path, StandardOpenOption.READ).truncate(start + length) : Files.newByteChannel(path, StandardOpenOption.READ)) {
+			fileChannel.position(start);
+			var buf = ByteBufferUtils.allocate(ByteBufferUtils.bufferSize(length), true);
+
+			while (fileChannel.read(buf) != -1) {
+				buf.flip();
+				write(buf);
+				buf.clear();
+			}
+		}
+	}
+
+	public static int headerSize(Collection<NamedString> list) {
+		if (list.isEmpty()) {
+			return 0;
 		}
 
+		int size = 0;
+
+		for (var h : list) {
+			size += h.name().length() + 2 + h.value().asString().length() + 2;
+		}
+
+		return size;
+	}
+
+	public void writeHeaders(Collection<NamedString> list) throws IOException {
+		if (list.isEmpty()) {
+			return;
+		}
+
+		var out = new ByteArrayOutputStream(headerSize(list));
+
+		for (var h : list) {
+			out.write(h.name().getBytes(StandardCharsets.US_ASCII));
+			out.write(':');
+			out.write(' ');
+			out.write(h.value().asString().getBytes(StandardCharsets.US_ASCII));
+			out.write('\r');
+			out.write('\n');
+		}
+
+		write(ByteBuffer.wrap(out.toByteArray()));
+	}
+
+	private ByteBuffer readTemp(int len) throws IOException {
+		temp = ByteBufferUtils.grow(temp, len, false);
 		read(temp);
 		return temp;
 	}
 
-	private byte[] tempBytes(int len) {
-		if (len > tempBytes.length) {
-			tempBytes = new byte[len];
-		}
-
-		return tempBytes;
-	}
-
 	public void readBytes(byte[] bytes, int off, int len) throws IOException {
 		while (len > 0) {
-			int count = Math.min(len, 8192);
-			var temp = readTemp(count).flip();
-			temp.get(bytes, off, count);
+			int count = ByteBufferUtils.bufferSize(len);
+			var temp = readTemp(count);
+			temp.get(0, bytes, off, count);
 			off += count;
 			len -= count;
 		}
@@ -72,12 +127,12 @@ public class ByteChannelConnection {
 		readBytes(bytes, 0, bytes.length);
 	}
 
-	public void transferTo(int len, OutputStream out) throws IOException {
+	public void read(int len, OutputStream out) throws IOException {
 		while (len > 0) {
-			int count = Math.min(len, 8192);
+			int count = ByteBufferUtils.bufferSize(len);
 			var bytes = tempBytes(count);
-			var temp = readTemp(count).flip();
-			temp.get(bytes, 0, count);
+			var temp = readTemp(count);
+			temp.get(0, bytes, 0, count);
 			out.write(bytes, 0, count);
 			len -= count;
 		}

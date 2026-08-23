@@ -8,6 +8,7 @@ import dev.latvian.apps.tinyhttp.http.HTTPUpgrade;
 import dev.latvian.apps.tinyhttp.util.OutputOperations;
 import org.jetbrains.annotations.Nullable;
 
+import java.nio.ByteBuffer;
 import java.nio.channels.ClosedByInterruptException;
 import java.nio.channels.ClosedChannelException;
 import java.nio.charset.StandardCharsets;
@@ -77,8 +78,8 @@ public class WSSession<REQ extends HTTPRequest> implements HTTPUpgrade<REQ> {
 	}
 
 	@Nullable
-	public Frame onTextMessage(byte[] payload) {
-		return onTextMessage(new String(payload, StandardCharsets.UTF_8));
+	public Frame onTextMessage(ByteBuffer payload) {
+		return onTextMessage(StandardCharsets.UTF_8.decode(payload).toString());
 	}
 
 	@Nullable
@@ -87,14 +88,14 @@ public class WSSession<REQ extends HTTPRequest> implements HTTPUpgrade<REQ> {
 	}
 
 	@Nullable
-	public Frame onBinaryMessage(byte[] payload) {
+	public Frame onBinaryMessage(ByteBuffer payload) {
 		return null;
 	}
 
-	public void onPing(byte[] payload) {
+	public void onPing(ByteBuffer payload) {
 	}
 
-	public void onPong(byte[] payload) {
+	public void onPong(ByteBuffer payload) {
 	}
 
 	void close0(CloseReason closeReason, @Nullable Throwable error) {

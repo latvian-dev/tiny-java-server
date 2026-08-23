@@ -5,6 +5,7 @@ import dev.latvian.apps.tinyhttp.ws.Frame;
 import dev.latvian.apps.tinyhttp.ws.WSSession;
 import org.jetbrains.annotations.Nullable;
 
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 
@@ -33,17 +34,30 @@ public class TestWSSession extends WSSession<TestRequest> {
 	@Override
 	@Nullable
 	public Frame onTextMessage(String payload) {
-		System.out.println("WS: " + payload);
+		System.out.println("[" + Instant.now() + "] WS Text: " + payload);
 		return null;
 	}
 
 	@Override
-	public void onPing(byte[] payload) {
-		System.out.println("[" + Instant.now() + "] WS Ping: " + new String(payload, StandardCharsets.UTF_8));
+	@Nullable
+	public Frame onBinaryMessage(ByteBuffer payload) {
+		var sb = new StringBuilder("[").append(Instant.now()).append("] WS Binary: ");
+
+		while (payload.hasRemaining()) {
+			sb.append(" %02X".formatted(payload.get() & 0xFF));
+		}
+
+		System.out.println(sb);
+		return null;
 	}
 
 	@Override
-	public void onPong(byte[] payload) {
-		System.out.println("[" + Instant.now() + "] WS Pong: " + new String(payload, StandardCharsets.UTF_8));
+	public void onPing(ByteBuffer payload) {
+		System.out.println("[" + Instant.now() + "] WS Ping: " + StandardCharsets.UTF_8.decode(payload));
+	}
+
+	@Override
+	public void onPong(ByteBuffer payload) {
+		System.out.println("[" + Instant.now() + "] WS Pong: " + StandardCharsets.UTF_8.decode(payload));
 	}
 }

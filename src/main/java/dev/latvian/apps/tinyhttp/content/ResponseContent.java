@@ -1,40 +1,51 @@
 package dev.latvian.apps.tinyhttp.content;
 
 import dev.latvian.apps.tinyhttp.HTTPConnection;
+import dev.latvian.apps.tinyhttp.http.response.error.client.ContentTooLargeError;
+import dev.latvian.apps.tinyhttp.http.response.error.client.RangeNotSatisfiableError;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.http.HttpRequest;
-import java.nio.ByteBuffer;
 
 public interface ResponseContent {
 	default long length() {
 		return -1L;
 	}
 
+	default long rangeLength() {
+		return length();
+	}
+
 	default String type() {
 		return "";
 	}
 
-	default boolean hasData() {
-		return true;
+	default String actualType() {
+		var type = type();
+		return type == null || type.isEmpty() ? MimeType.OCTET_STREAM : type;
 	}
 
 	void write(OutputStream out) throws IOException;
 
 	default byte[] toBytes() throws IOException {
-		var out = new ByteArrayOutputStream();
+		long len = rangeLength();
+
+		if (len > Integer.MAX_VALUE) {
+			throw new ContentTooLargeError(len, Integer.MAX_VALUE);
+		}
+
+		var out = new ByteArrayOutputStream((int) len);
 		write(out);
 		return out.toByteArray();
 	}
 
-	default void transferTo(HTTPConnection<?> connection) throws IOException {
-		connection.write(ByteBuffer.wrap(toBytes()));
-	}
+	void transferTo(HTTPConnection<?> connection) throws IOException;
 
-	default HttpRequest.BodyPublisher bodyPublisher() throws IOException {
-		var b = toBytes();
-		return b.length == 0 ? HttpRequest.BodyPublishers.noBody() : HttpRequest.BodyPublishers.ofByteArray(b);
+	HttpRequest.BodyPublisher bodyPublisher() throws IOException;
+
+	default ResponseContent withRange(RequestRange range) {
+		throw new RangeNotSatisfiableError(0L);
 	}
 }

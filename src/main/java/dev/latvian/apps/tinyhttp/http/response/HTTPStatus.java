@@ -2,10 +2,10 @@ package dev.latvian.apps.tinyhttp.http.response;
 
 import dev.latvian.apps.tinyhttp.StatusCode;
 import dev.latvian.apps.tinyhttp.content.MimeType;
+import dev.latvian.apps.tinyhttp.util.ByteBufferUtils;
 import org.jetbrains.annotations.Nullable;
 
 import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 public enum HTTPStatus implements HTTPResponse {
@@ -98,7 +98,7 @@ public enum HTTPStatus implements HTTPResponse {
 	HTTPStatus(int code, String message) {
 		this.code = code;
 		this.statusCode = new StatusCode(code, message);
-		this.responseBuffer = ByteBuffer.wrap(("HTTP/1.1 " + statusCode.code() + " " + statusCode.message() + "\r\n").getBytes(StandardCharsets.UTF_8));
+		this.responseBuffer = ByteBufferUtils.directASCII("HTTP/1.1 " + statusCode.code() + " " + statusCode.message() + "\r\n");
 		this.string = Integer.toString(code);
 	}
 

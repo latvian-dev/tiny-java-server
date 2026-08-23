@@ -6,6 +6,7 @@ import dev.latvian.apps.tinyhttp.HTTPServer;
 import dev.latvian.apps.tinyhttp.NamedString;
 import dev.latvian.apps.tinyhttp.OptionalString;
 import dev.latvian.apps.tinyhttp.Upload;
+import dev.latvian.apps.tinyhttp.content.RequestRange;
 import dev.latvian.apps.tinyhttp.error.InvalidPathException;
 import dev.latvian.apps.tinyhttp.http.body.Body;
 import dev.latvian.apps.tinyhttp.http.body.ChunkedBody;
@@ -377,5 +378,10 @@ public class HTTPRequest {
 		if (error != null) {
 			error.printStackTrace();
 		}
+	}
+
+	@Nullable
+	public RequestRange range() {
+		return null;
 	}
 }
