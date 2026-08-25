@@ -16,7 +16,6 @@ import dev.latvian.apps.tinyhttp.http.body.MultipartFormDataBody;
 import dev.latvian.apps.tinyhttp.http.body.SimpleBody;
 import dev.latvian.apps.tinyhttp.http.response.HTTPPayload;
 import dev.latvian.apps.tinyhttp.http.response.HTTPResponse;
-import dev.latvian.apps.tinyhttp.http.response.error.client.ContentTooLargeError;
 import dev.latvian.apps.tinyhttp.http.response.error.client.LengthRequiredError;
 import dev.latvian.apps.tinyhttp.http.response.error.client.UnprocessableContentError;
 import dev.latvian.apps.tinyhttp.http.response.error.server.NotImplementedError;
@@ -84,8 +83,6 @@ public class HTTPRequest {
 
 		if (len == 0L) {
 			this.body = new EmptyBody(header("Content-Type").asString());
-		} else if (len > Integer.MAX_VALUE) {
-			this.body = new ErrorBody("error:content_too_large", () -> new ContentTooLargeError(len, Integer.MAX_VALUE));
 		} else if (len > 0L) {
 			var ct = header("Content-Type").asString();
 			var ctParts = ct.split(";");
@@ -98,7 +95,7 @@ public class HTTPRequest {
 			if (ctParts[0].startsWith("multipart/form-data")) {
 				if (ctParts.length == 2 && ctParts[1].startsWith("boundary=") && ctParts[1].length() > 9) {
 					var boundary = ctParts[1].substring(9);
-					this.body = new MultipartFormDataBody(connection, (int) len, ct, boundary);
+					this.body = new MultipartFormDataBody(connection, len, ct, boundary);
 				} else {
 					this.body = new ErrorBody("error:multipart_form_data_boundary_missing", () -> new NotImplementedError("Multipart form data boundary is missing"));
 				}
@@ -106,12 +103,12 @@ public class HTTPRequest {
 				// https://developer.mozilla.org/en-US/docs/Web/HTTP/Range_requests#multipart_ranges
 				this.body = new ErrorBody("error:multipart_byte_data_not_supported", () -> new NotImplementedError("Multipart byte data is currently not supported"));
 			} else {
-				this.body = new SimpleBody(connection, (int) len, ct);
+				this.body = new SimpleBody(connection, len, ct);
 			}
 		} else if (header("Transfer-Encoding").asString().toLowerCase(Locale.ROOT).contains("chunked")) {
 			var ct = header("Content-Type").asString();
 			var sizeHint = header("X-Content-Length-Hint").asLong(0L);
-			this.body = new ChunkedBody(connection, ct, sizeHint <= Integer.MAX_VALUE ? (int) sizeHint : 0);
+			this.body = new ChunkedBody(connection, ct, sizeHint);
 		} else {
 			this.body = new ErrorBody("error:length_required", LengthRequiredError::new);
 		}

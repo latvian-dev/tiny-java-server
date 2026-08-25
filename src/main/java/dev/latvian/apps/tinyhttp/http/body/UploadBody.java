@@ -1,5 +1,7 @@
 package dev.latvian.apps.tinyhttp.http.body;
 
+import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 
@@ -19,8 +21,13 @@ public final class UploadBody implements Body {
 			byteBuffer = ByteBuffer.wrap(bytes);
 			return byteBuffer;
 		} else {
-			return byteBuffer.clear();
+			return byteBuffer.rewind();
 		}
+	}
+
+	@Override
+	public void transferTo(OutputStream out) throws IOException {
+		out.write(bytes);
 	}
 
 	@Override
@@ -44,7 +51,7 @@ public final class UploadBody implements Body {
 	}
 
 	@Override
-	public int contentLength() {
+	public long contentLength() {
 		return bytes.length;
 	}
 }

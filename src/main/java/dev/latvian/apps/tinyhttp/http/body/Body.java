@@ -12,6 +12,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.net.URLDecoder;
 import java.nio.ByteBuffer;
+import java.nio.channels.Channels;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
@@ -38,22 +39,27 @@ public interface Body {
 
 	ByteBuffer byteBuffer();
 
-	default void byteBuffer(ByteBuffer to) {
-		to.put(to.position(), byteBuffer(), 0, to.remaining());
-	}
-
 	default String contentType() {
 		return "";
 	}
 
-	default int contentLength() {
-		return -1;
+	default long contentLength() {
+		return -1L;
 	}
 
-	default long transferTo(OutputStream out) throws IOException {
-		var bytes = bytes();
-		out.write(bytes);
-		return bytes.length;
+	default void transferTo(OutputStream out) throws IOException {
+		var buffer = byteBuffer();
+
+		if (!buffer.hasRemaining()) {
+			return;
+		}
+
+		var channel = Channels.newChannel(out);
+
+		do {
+			channel.write(buffer);
+		}
+		while (buffer.hasRemaining());
 	}
 
 	default String text() {
@@ -62,6 +68,12 @@ public interface Body {
 
 	default byte[] bytes() {
 		var buf = byteBuffer();
+
+		if (buf.hasArray()) {
+			var result = buf.array();
+			buf.position(buf.limit());
+			return result;
+		}
 
 		try {
 			return buf.array();

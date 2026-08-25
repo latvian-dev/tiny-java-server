@@ -13,7 +13,7 @@ public final class MultipartFormDataBody extends SimpleBody {
 	private final String boundary;
 	private FormData formData;
 
-	public MultipartFormDataBody(ByteChannelConnection connection, int contentLength, String contentType, String boundary) {
+	public MultipartFormDataBody(ByteChannelConnection connection, long contentLength, String contentType, String boundary) {
 		super(connection, contentLength, contentType);
 		this.boundary = boundary;
 	}
@@ -21,13 +21,13 @@ public final class MultipartFormDataBody extends SimpleBody {
 	@Override
 	public FormData formData() {
 		if (formData == null) {
-			var bytes = bytes();
-
+			var byteBuffer = byteBuffer();
 			var values = new ArrayList<NamedString>();
 			var uploads = new ArrayList<Upload>();
 			// https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Content-Disposition#html_posting_multipartform-data_content_type
-			var text = new String(bytes, StandardCharsets.ISO_8859_1);
+			var text = StandardCharsets.ISO_8859_1.decode(byteBuffer).toString();
 
+			// This is very unoptimized but works for now
 			if (text.startsWith("--" + boundary + "\r\n") && text.endsWith("\r\n--" + boundary + "--\r\n")) {
 				text = text.substring(boundary.length() + 4, text.length() - boundary.length() - 8);
 				var blocks = text.split("\r\n--" + boundary + "\r\n");

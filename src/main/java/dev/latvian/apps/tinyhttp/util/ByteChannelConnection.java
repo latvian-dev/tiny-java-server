@@ -127,8 +127,8 @@ public class ByteChannelConnection {
 		readBytes(bytes, 0, bytes.length);
 	}
 
-	public void read(int len, OutputStream out) throws IOException {
-		while (len > 0) {
+	public void read(long len, OutputStream out) throws IOException {
+		while (len > 0L) {
 			int count = ByteBufferUtils.bufferSize(len);
 			var bytes = tempBytes(count);
 			var temp = readTemp(count);

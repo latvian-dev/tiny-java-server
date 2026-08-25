@@ -17,12 +17,7 @@ public record EmptyBody(String contentType) implements Body {
 	}
 
 	@Override
-	public void byteBuffer(ByteBuffer to) {
-	}
-
-	@Override
-	public long transferTo(OutputStream out) {
-		return 0L;
+	public void transferTo(OutputStream out) {
 	}
 
 	@Override

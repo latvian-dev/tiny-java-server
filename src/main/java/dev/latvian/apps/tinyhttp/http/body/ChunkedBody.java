@@ -1,20 +1,21 @@
 package dev.latvian.apps.tinyhttp.http.body;
 
 import dev.latvian.apps.tinyhttp.http.response.error.client.BadRequestError;
+import dev.latvian.apps.tinyhttp.http.response.error.client.ContentTooLargeError;
 import dev.latvian.apps.tinyhttp.http.response.error.client.UnprocessableContentError;
 import dev.latvian.apps.tinyhttp.util.ByteChannelConnection;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.ByteBuffer;
 
 public final class ChunkedBody implements Body {
 	private final ByteChannelConnection connection;
 	private final String contentType;
-	private final int sizeHint;
-	private ByteBuffer byteBuffer;
+	private final long sizeHint;
 
-	public ChunkedBody(ByteChannelConnection connection, String contentType, int sizeHint) {
+	public ChunkedBody(ByteChannelConnection connection, String contentType, long sizeHint) {
 		this.connection = connection;
 		this.contentType = contentType;
 		this.sizeHint = sizeHint;
@@ -22,24 +23,16 @@ public final class ChunkedBody implements Body {
 
 	@Override
 	public ByteBuffer byteBuffer() {
-		if (byteBuffer == null || !byteBuffer.hasRemaining()) {
-			try {
-				byteBuffer = readChunked();
-			} catch (IOException ex) {
-				throw new UnprocessableContentError("Failed to read chunked request body", ex);
-			}
-		}
-
-		return byteBuffer;
+		return ByteBuffer.wrap(bytes());
 	}
 
-	private ByteBuffer readChunked() throws IOException {
+	@Override
+	public void transferTo(OutputStream out) throws IOException {
 		var chunkHeader = connection.readCRLF();
 		int chunkSize = Integer.parseUnsignedInt(chunkHeader.split(";", 2)[0], 16);
-		var bytes = new ByteArrayOutputStream(sizeHint > 0 ? sizeHint : chunkSize);
 
 		while (chunkSize > 0) {
-			connection.read(chunkSize, bytes);
+			connection.read(chunkSize, out);
 			var dataEnd = connection.readCRLF();
 
 			if (!dataEnd.isEmpty()) {
@@ -55,8 +48,21 @@ public final class ChunkedBody implements Body {
 		if (!dataEnd.isEmpty()) {
 			throw new BadRequestError("Expected CRLF after final chunk data, got '" + dataEnd + "'");
 		}
+	}
 
-		return ByteBuffer.wrap(bytes.toByteArray());
+	@Override
+	public byte[] bytes() {
+		if (sizeHint > Integer.MAX_VALUE) {
+			throw new ContentTooLargeError(sizeHint, Integer.MAX_VALUE);
+		}
+
+		try {
+			var bytes = new ByteArrayOutputStream(sizeHint > 0L ? (int) sizeHint : 8192);
+			transferTo(bytes);
+			return bytes.toByteArray();
+		} catch (IOException ex) {
+			throw new UnprocessableContentError("Failed to read chunked request body", ex);
+		}
 	}
 
 	public ByteChannelConnection connection() {
