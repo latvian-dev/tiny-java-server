@@ -43,9 +43,7 @@ public interface Body {
 		return "";
 	}
 
-	default long contentLength() {
-		return -1L;
-	}
+	long contentLength();
 
 	default void transferTo(OutputStream out) throws IOException {
 		var buffer = byteBuffer();

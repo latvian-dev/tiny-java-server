@@ -3,6 +3,7 @@ package dev.latvian.apps.tinyhttp.http.body;
 import dev.latvian.apps.tinyhttp.http.response.error.client.BadRequestError;
 import dev.latvian.apps.tinyhttp.http.response.error.client.ContentTooLargeError;
 import dev.latvian.apps.tinyhttp.http.response.error.client.UnprocessableContentError;
+import dev.latvian.apps.tinyhttp.http.response.error.server.InternalError;
 import dev.latvian.apps.tinyhttp.util.ByteChannelConnection;
 
 import java.io.ByteArrayOutputStream;
@@ -24,6 +25,15 @@ public final class ChunkedBody implements Body {
 	@Override
 	public ByteBuffer byteBuffer() {
 		return ByteBuffer.wrap(bytes());
+	}
+
+	@Override
+	public long contentLength() {
+		if (sizeHint > 0L) {
+			return sizeHint;
+		} else {
+			throw new InternalError("Chunked body content length is unknown");
+		}
 	}
 
 	@Override

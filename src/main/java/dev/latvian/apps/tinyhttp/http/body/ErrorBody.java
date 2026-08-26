@@ -12,6 +12,11 @@ public record ErrorBody(String errorType, Supplier<HTTPError> error) implements 
 	}
 
 	@Override
+	public long contentLength() {
+		throw error.get();
+	}
+
+	@Override
 	public String toString() {
 		return errorType;
 	}

@@ -17,6 +17,11 @@ public record EmptyBody(String contentType) implements Body {
 	}
 
 	@Override
+	public long contentLength() {
+		return 0L;
+	}
+
+	@Override
 	public void transferTo(OutputStream out) {
 	}
 
