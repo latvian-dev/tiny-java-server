@@ -19,6 +19,7 @@ import dev.latvian.apps.tinyhttp.ws.WSSessionFactory;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.function.Consumer;
 
 public interface ServerRegistry<REQ extends HTTPRequest> {
@@ -123,9 +124,17 @@ public interface ServerRegistry<REQ extends HTTPRequest> {
 		TUSUploadHandler.register(this, path, handler);
 	}
 
-	default <WSS extends WSSession<REQ>> WSHandler<REQ, WSS> ws(String path, WSSessionFactory<REQ, WSS> factory) {
+	default <WSS extends WSSession<REQ>> WSHandler<REQ, WSS> ws(List<String> paths, WSSessionFactory<REQ, WSS> factory) {
 		var handler = new WSEndpointHandler<>(factory);
-		get(path, handler);
+
+		for (var path : paths) {
+			get(path, handler);
+		}
+
 		return handler;
+	}
+
+	default <WSS extends WSSession<REQ>> WSHandler<REQ, WSS> ws(String path, WSSessionFactory<REQ, WSS> factory) {
+		return ws(List.of(path), factory);
 	}
 }

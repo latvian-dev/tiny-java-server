@@ -605,7 +605,7 @@ public class HTTPServer<REQ extends HTTPRequest> implements Runnable, ServerRegi
 	}
 
 	public List<WSHandler<REQ, ?>> wsHandlers() {
-		return List.copyOf(handlers().filter(h -> h.handler() instanceof WSEndpointHandler).map(h -> (WSEndpointHandler<REQ, ?>) h.handler()).toList());
+		return List.copyOf(handlers().filter(h -> h.handler() instanceof WSEndpointHandler).map(h -> (WSEndpointHandler<REQ, ?>) h.handler()).distinct().toList());
 	}
 
 	@Nullable
